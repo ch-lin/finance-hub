@@ -1,0 +1,117 @@
+# Copyright (c) 2025-2026 Che-Hung Lin. All rights reserved.
+#
+# This software and associated documentation files (the "Software") are the
+# proprietary and confidential property of Che-Hung Lin.
+#
+# No permission is granted to use, copy, modify, merge, publish, distribute,
+# sublicense, and/or sell copies of the Software, in whole or in part, without
+# the prior express written permission of the copyright holder.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+# IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+name: finance-hub-services
+
+x-common-env-files: &common-env-files
+  - ${APP_ENV_FILE:-.env.base}
+
+services:
+  finance-hub-db:
+    image: finance-hub-database
+    build: finance-hub-database/
+    container_name: finance-hub-database
+    hostname: finance-hub-db
+    restart: unless-stopped
+    env_file: *common-env-files
+    volumes: # Use a bind mount to a configurable host path
+      - "${FINANCE_HUB_DB_DATA_PATH}:/var/lib/mysql"
+    networks:
+      finance-hub-network:
+        ipv4_address: 172.16.15.10
+    ports:
+      - "${FINANCE_HUB_DB_PORT:-3308}:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=${FINANCE_HUB_MYSQL_DATABASE:-financehub}
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$${MYSQL_ROOT_PASSWORD}"]
+      # How often to run the check.
+      interval: 30s
+      # How long to wait for the check to return.
+      timeout: 10s
+      # How many times to retry before marking as unhealthy.
+      retries: 5
+      # Grace period for startup. Checks every 5s during this time.
+      start_period: 60s
+
+  finance-hub-backend:
+    image: finance-hub-backend
+    build:
+      context: ..
+      dockerfile: ./finance-hub/finance-hub-backend/Dockerfile
+    container_name: finance-hub-backend
+    hostname: finance-hub-backend
+    restart: unless-stopped
+    env_file: *common-env-files
+    networks:
+      finance-hub-network:
+        ipv4_address: 172.16.15.11
+      shared-services-network:
+        ipv4_address: 172.16.10.16
+    volumes:
+      - "${FINANCE_HUB_INPUT_PATH}:/app/data"
+    ports:
+      - "${FINANCE_HUB_BACKEND_PORT:-8085}:8080"
+    depends_on:
+      finance-hub-db:
+        condition: service_healthy
+    environment:
+      # Override the datasource URL to use the Docker service name
+      - SPRING_DATASOURCE_URL=jdbc:mysql://finance-hub-db:3306/${FINANCE_HUB_MYSQL_DATABASE:-financehub}
+      # It's good practice to also provide credentials via environment variables
+      - SPRING_DATASOURCE_USERNAME=${MYSQL_USER}
+      - SPRING_DATASOURCE_PASSWORD=${MYSQL_PASSWORD}
+
+      # Data Import Base Path inside the container
+      - FINANCE_HUB_INPUT_BASE_PATH=/app/data
+
+      # Central Logging Database Configuration
+      - LOGGING_DB_URL=jdbc:mysql://logging-db:3306/central_logs?useSSL=false&allowPublicKeyRetrieval=true
+      - LOGGING_DB_USERNAME=${LOGGING_MYSQL_USER:-logger}
+      - LOGGING_DB_PASSWORD=${LOGGING_MYSQL_PASSWORD}
+
+      # Override the server port to 8080 for the container environment
+      - SERVER_PORT=8080
+      # Configure CORS allowed origins
+      - CORS_ALLOWED_ORIGIN_PATTERNS=${CORS_ALLOWED_ORIGIN_PATTERNS}
+      # Override the JWT issuer URI to use the authentication service's Docker service name
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=${AUTH_SERVICE_API_URL:-http://authentication-backend:8080}
+    # Set memory limits for standard 'docker-compose up'
+    mem_limit: 1024M
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      # How often to run the check.
+      interval: 30s
+      # How long to wait for the check to return.
+      timeout: 10s
+      # How many times to retry before marking as unhealthy.
+      retries: 5
+      # Grace period for startup. Checks every 5s during this time.
+      start_period: 60s
+
+networks:
+  finance-hub-network:
+    name: finance-hub-network
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.16.15.0/24
+          gateway: 172.16.15.1
+  shared-services-network:
+    external: true

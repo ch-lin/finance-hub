@@ -1,0 +1,86 @@
+{
+  "manifest_version": 3,
+  "name": "Finance Hub - Shopping Extractor",
+  "version": "1.1",
+  "description": "Extracts Amazon & Rakuten order data and sends to Finance Hub Backend",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "nativeMessaging",
+    "downloads"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "host_permissions": [
+    "https://www.amazon.co.jp/*",
+    "https://order.my.rakuten.co.jp/*",
+    "https://books.rakuten.co.jp/*",
+    "https://www.sofmap.com/*",
+    "*://*/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Finance Hub Settings"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.amazon.co.jp/gp/css/summary/print.html*",
+        "https://www.amazon.co.jp/your-orders/orders*"
+      ],
+      "js": [
+        "ui/preview_panel.js",
+        "parsers/amazon_parser.js",
+        "core/finance_hub_core.js"
+      ],
+      "run_at": "document_end"
+    },
+    {
+      "matches": [
+        "https://order.my.rakuten.co.jp/purchase-history?*order_number=*",
+        "https://order.my.rakuten.co.jp/purchase-history/?*order_number=*",
+        "https://books.rakuten.co.jp/mypage/delivery/status?*order_number=*"
+      ],
+      "js": [
+        "ui/preview_panel.js",
+        "parsers/rakuten_parser.js",
+        "core/finance_hub_core.js"
+      ],
+      "run_at": "document_end"
+    },
+    {
+      "matches": [
+        "https://www.sofmap.com/order_status_detail.aspx*"
+      ],
+      "js": [
+        "ui/preview_panel.js",
+        "parsers/sofmap_parser.js",
+        "core/finance_hub_core.js"
+      ],
+      "run_at": "document_end"
+    },
+    {
+      "matches": [
+        "https://direct.smbc.co.jp/*"
+      ],
+      "js": [
+        "ui/preview_panel.js",
+        "parsers/smbc_parser.js",
+        "core/finance_hub_core.js"
+      ],
+      "run_at": "document_end"
+    },
+    {
+      "matches": [
+        "https://entry11.bk.mufg.jp/*"
+      ],
+      "js": [
+        "ui/preview_panel.js",
+        "parsers/mufg_parser.js",
+        "core/finance_hub_core.js"
+      ],
+      "run_at": "document_end"
+    }
+  ]
+}

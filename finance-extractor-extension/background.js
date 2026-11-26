@@ -1,0 +1,43 @@
+/*=============================================================================
+ * Copyright (c) 2025-2026 Che-Hung Lin. All rights reserved.
+ *
+ * This software and associated documentation files (the "Software") are the
+ * proprietary and confidential property of Che-Hung Lin.
+ *
+ * No permission is granted to use, copy, modify, merge, publish, distribute,
+ * sublicense, and/or sell copies of the Software, in whole or in part, without
+ * the prior express written permission of the copyright holder.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+ * IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ *===========================================================================*/
+
+const NATIVE_HOST_NAME = 'ch.lin.finance.hub.native';
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === 'pingNativeHost') {
+        chrome.runtime.sendNativeMessage(NATIVE_HOST_NAME, { command: "ping" }, (response) => {
+            if (chrome.runtime.lastError) {
+                console.warn("Native host not found or error:", chrome.runtime.lastError.message);
+                sendResponse({ installed: false });
+            } else {
+                sendResponse({ installed: true });
+            }
+        });
+        return true; // Keep message channel open for async response
+    } else if (request.action === 'triggerNativeSave') {
+        chrome.runtime.sendNativeMessage(NATIVE_HOST_NAME, { command: "save_page" }, (response) => {
+            if (chrome.runtime.lastError) {
+                console.error("Failed to trigger native save:", chrome.runtime.lastError.message);
+                sendResponse({ success: false, error: chrome.runtime.lastError.message });
+            } else {
+                sendResponse({ success: true });
+            }
+        });
+        return true;
+    }
+});

@@ -1,0 +1,15 @@
+{
+  "name": "finance-extractor-extension",
+  "version": "1.0.0",
+  "description": "Finance Hub Extractor Extension",
+  "scripts": {
+    "test": "jest",
+    "build": "web-ext build --overwrite-dest"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-chrome": "^0.8.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "web-ext": "^7.11.0"
+  }
+}
