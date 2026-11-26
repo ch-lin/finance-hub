@@ -2,66 +2,85 @@
 
 ![Java](https://img.shields.io/badge/Java-25%2B-orange)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5-green)
-![Architecture](https://img.shields.io/badge/Architecture-Microservice-blueviolet)
+![Architecture](https://img.shields.io/badge/Architecture-Clean%20%2F%20Multi--Tenant-blueviolet)
 ![Maven](https://img.shields.io/badge/Build-Maven-blue)
 ![Docker](https://img.shields.io/badge/Docker-Container-2496ED)
 
-The **Finance Hub** is the central nervous system ("The Brain") for your personal accounting and finance management platform.
+The **Finance Hub** is the central nervous system ("The Brain") for your personal and family accounting, investment tracking, and lifelong financial simulation platform.
 
-It serves as the primary backend API for the **Finance-Hub-UI**, manages the core business logic (accounting records, shopping reconciliations, retirement projections), orchestrates data parsing tasks, and provides a unified interface for data injected from browser extensions (e.g., Bank statements, Amazon orders, Rakuten, Sofmap).
+It serves as the primary backend API for **Hub UI**, enforces Japanese statutory tax/pension/mortgage rules inside a pure-function simulation engine, orchestrates multi-format document ingestion, and provides secure multi-tenant isolation with family sharing and privacy masking.
 
 ## 🏗️ Architecture & Role
 
-*   **The "Brain"**: Centralizes state management. It knows your bank balances, credit card transactions, NISA/DC/Pension snapshots, and categorizes your expenses.
-*   **Extension Webhooks**: Provides secure endpoints for the Chrome Extension to automatically push order history and statement data directly into the database.
-*   **Reconciliation Engine**: Automatically links credit card transactions to shopping orders (e.g., matching a Visa charge to an Amazon purchase).
-*   **AI Categorization**: Leverages AI tools to automatically categorize unknown or uncategorized expenses.
+The backend follows a 4-module Clean Architecture (`hub-common`, `hub-domain`, `hub-app`, `hub`):
 
-### Design Philosophy
-*   **Source of Truth**: The Hub's database is the single source of truth for all your financial states.
-*   **Extensibility**: Designed to easily add new parsers for different banks or shopping platforms.
+*   **Source of Truth (Fact vs. Settings Separation)**: Factual brokerage/bank snapshots are stored separately from user-defined simulation settings (such as DC/iDeCo target allocations, contribution overrides, and profile assumptions) so re-imports never wipe out user preferences.
+*   **Multi-Tenant & Family Privacy**: Built on `MultiUserBaseEntity`, Hibernate tenant filtering (`ownerFilter`), OAuth2 JWT authentication, `FamilyGroup` sharing, and 3-tier `PrivacyLevel` (`PRIVATE`, `AGGREGATE_ONLY`, `SHARED`) with automatic DTO masking (`PrivacyMaskingUtil`) controlled via `X-View-Scope`.
+*   **Pure-Function Simulation Core**: Repository access is isolated in context builders (`SimulationContextFactory`); yearly pipelines, tax engines, and calculators operate strictly on immutable/isolated context DTOs for deterministic and high-throughput optimization runs.
+*   **Ingestion & Reconciliation**: Supports Chrome Extension webhooks, manual file uploads (HTML, PDF, Excel), and transaction-to-receipt reconciliation.
 
 ## 🚀 Key Features
 
-*   **Shopping & Bank Integrations**: Automated data injection from Amazon, Rakuten, Sofmap, and major banks via Chrome Extensions.
-*   **Retirement & Investment Tracking**: Tracks NISA, iDeCo/Corporate DC, and Pension records with future projection capabilities.
-*   **Smart Reconciliation & Categorization**: Hierarchical category management (with essential/non-essential flags) and an interactive UI to manually or semi-automatically link credit card charges to itemized shopping receipts.
-*   **AI-Powered Categorization**: Export and import uncategorized transactions for AI-assisted classification.
-*   **Advanced Financial Planning**:
-    *   **Dynamic Salary Modeling**: Project future income using an automated baseline and custom career milestones (e.g., job changes, promotions).
-    *   **Life Events Planning**: Incorporate large, one-time future expenses (e.g., mortgage payoff, education funds) into your lifelong financial timeline.
-    *   **Dynamic Expense Calculation**: Automatically estimate your essential living expenses from historical, categorized transaction data.
-    *   **Investment Goal Seeking**: Dynamically adjust monthly investment contributions (e.g., NISA) and expected return rates to reverse-calculate the requirements for maintaining a secure lifelong asset balance.
-    *   **Interactive Dashboard**: Visualize the unified lifelong asset water-level chart combining salaries, pensions, investments, and life events.
-*   **Reporting**: Generate Markdown summary reports of your financial health.
+### Accounting, Ingestion & Reconciliation
+*   **Multi-Platform Ingestion**: Supports Bank statements, Credit Card transactions, Amazon, Rakuten, Sofmap, E-Trade (ESPP / RSU / lots), SBI NISA, and Sompo/SBI DC & iDeCo via Chrome Extensions and file parsers.
+*   **Document Parsing**: Extracts Japanese Nenkin (pension) statements using **Apache PDFBox** and exchange rate sheets using **Apache POI**.
+*   **Smart Reconciliation & Categories**: Hierarchical transaction categories (with essential/non-essential flags) and reconciliation linking credit card charges to itemized shopping orders.
+
+### Assets, Liabilities & Portfolio Management
+*   **NISA Tracking**: Enforces separate statutory sub-limits for Growth (¥2.4M/yr) and Tsumitate (¥1.2M/yr) quotas alongside the ¥18M lifetime cap, plus active regular contribution plan tracking.
+*   **DC / iDeCo Management**: Account-level batch allocation updates with strict 100% sum validation, `BigDecimal` floor rounding, and designated remainder-fund absorption (`remainderFundCode`), paired with independent user target allocations for simulation scenarios.
+*   **Mortgages, Pensions, Insurance & Company Stock**: Tracks existing and future mortgages (including bonus payments and scheduled early repayments), pension accrual, insurance policies, and E-Trade stock holdings.
+
+### Japanese Statutory Tax, Social Insurance & Education Modeling
+*   **Year-Aware Tax Strategy Engine**: Automatically switches statutory rules across simulation years (Legacy ≤2024, Reiwa 7 / 2025, Reiwa 8–9 / 2026–2027, and Reiwa 10+ / 2028+) for both **Basic Deduction** (`BasicDeductionStrategyFactory`, including high-income inhabitant tax phase-out between ¥24M–¥25M) and **Employment Income Deduction** (`EmploymentIncomeDeductionStrategyFactory`).
+*   **Split Social Insurance Statutory Caps**: Applies separate statutory caps for monthly base salary and bonus payments (Health Insurance: ¥1.39M/mo & ¥5.73M/yr bonus; Kousei Pension: ¥650k/mo & ¥1.5M/payment bonus).
+*   **Mortgage Tax Deduction (住宅ローン控除)**: Year- and residence-type-aware deduction strategies (including 2026+ energy-saving housing ¥140k cap, combined per-residence caps across co-existing loans, and `InhabitantTaxLimitStrategy` enforcing 7%/¥136.5k pre-2022 vs. 5%/¥97.5k from 2022).
+*   **Retirement Income Deduction (退職所得控除)**: Ceiling-rounded service year calculation (`TaxDateUtils`) in accordance with NTA rules for DC/iDeCo lump-sum withdrawals.
+*   **Configurable Rules & Monthly Education Model**: Database-backed Pension Rule configurations (e.g., Reiwa 7 full basic pension ¥831,700) and monthly-granularity child education cost projections across school track transitions.
+
+### Lifelong Financial Simulation & Global Optimizer
+*   **Lifelong Cashflow & Net Worth Projection**: Combines dynamic salary modeling, career milestones, life events, retirement-year segmented tax & year-end adjustments, mortgages, child education, pensions, and tax-advantaged accounts.
+*   **Global Optimizer**: Hybrid **Grid Search + Genetic Algorithm (GA)** engine to optimize retirement timing, investment contributions, and mortgage early repayment strategies under bankruptcy-avoidance constraints.
+
+### AI-Assisted Categorization & Reporting
+*   **AI Agent Categorization Workflow**: Currently exports uncategorized transactions as CSV for external AI Agent classification and re-imports categorized results; planned to evolve into direct AI Agent API / MCP integration.
+*   **Financial Reports**: Generates downloadable Markdown summary reports of your financial state.
 
 ## 🗺️ Project Roadmap
 
-- **Phase 1: Basic Accounting & Extensions** [✅ Completed]
-  - Core data models, Chrome Extension webhooks, and AI categorization.
-- **Phase 2: Assets & Pensions** [✅ Completed]
-  - E-Trade stock tracking, NISA, iDeCo/DC, and basic pension tracking.
-- **Phase 3: Long-Term Asset Projection & Goal Seeking** [✅ Completed]
-  - Dynamic salary modeling with career milestones.
-  - Life events planning for major future expenses.
-  - Dynamic baseline expenses calculation via transaction reconciliation.
-  - Reverse goal-seeking for investments (e.g., NISA contribution limits).
-  - Interactive dashboard for lifetime asset water-level visualization.
-- **Phase 4: Multi-Tenant Architecture** [🚧 Next Up]
-  - Multi-user support, family accounts, and shared resources.
+- **Phase 1: Basic Accounting, Reconciliation & Extensions** `[✅ Completed]`
+  - Core accounting models, shopping/bank webhooks, hierarchical categories, and CSV-based AI categorization workflow.
+- **Phase 2: Assets, Investments & Pensions** `[✅ Completed]`
+  - E-Trade stock tracking, NISA, Corporate DC / iDeCo, mortgages, insurance policies, and pension records.
+- **Phase 3: Long-Term Asset Projection & Global Optimizer** `[✅ Completed]`
+  - Lifelong cashflow simulation, career/life events, dynamic baseline expense estimation, and Hybrid Grid Search / GA optimization.
+- **Phase 4: Multi-Tenant Architecture, Family Sharing & Privacy Masking** `[✅ Completed]`
+  - `MultiUserBaseEntity`, Hibernate tenant filtering, JWT OAuth2 integration, family groups, and 3-tier privacy masking.
+- **Phase 5: Japanese Statutory Compliance & DC Allocation Modeling** `[✅ Completed]`
+  - Multi-year tax reform strategies (Reiwa 7–10+), split social insurance caps, 2026+ mortgage tax deduction & inhabitant tax limit strategies, configurable pension rules, monthly education cost modeling, and DC/iDeCo floor+remainder allocation & target allocation settings.
+- **Phase 6: Direct AI Integration & Next-Gen Capabilities** `[🚧 Planned]`
+  - **Direct AI Agent Integration (API / MCP)**: Replace manual CSV export/import with direct AI Agent API / Spring AI MCP integration for automated categorization and interactive financial queries.
+  - **Family Financial Simulator**: Spouse income, pension, and asset cashflow integration (Sandbox & Link modes).
+  - **DC/iDeCo Sandbox Target Allocation Execution**: Apply user target allocations inside what-if sandbox overrides and auto-invalidate stale settings on lineup changes.
+  - **Item-Level Privacy Write Support & Chrome Extractor V3**: Fine-grained per-item privacy controls and unified Manifest V3 browser extraction.
+  - **Inhabitant Tax June-Switch Lightweight Engine**: Prior-year June tax switching without full monthly simulation overhead.
 
 ## 🛠️ Tech Stack
 
-*   **Language**: Java (25+)
-*   **Framework**: Spring Boot 3.5
+*   **Language**: Java 25+ (Virtual Threads enabled)
+*   **Framework**: Spring Boot 3.5 (WebMVC, Data JPA, Security OAuth2 Resource Server, Validation)
 *   **Database**: MySQL (Core Data)
-*   **Build Tool**: Maven
+*   **Mapping & Boilerplate**: MapStruct, Lombok
+*   **API Documentation**: Springdoc OpenAPI (Swagger UI)
+*   **Parsing**: Jsoup (HTML), Apache PDFBox (PDF), Apache POI (Excel)
+*   **AI Integration**: Spring AI MCP Server Starter (WebMVC)
+*   **Build & Deployment**: Maven, Docker
 
 ## 📦 Prerequisites & Dependencies
 
 Since this project was split from a mono-repo, it depends on the shared **Platform** library.
 
-1.  **Platform Library**: You must build and install the `Platform` project locally first.
+1.  **Platform Library**: Build and install the `Platform` project locally first.
     ```bash
     cd ../Platform
     mvn clean install
@@ -70,14 +89,14 @@ Since this project was split from a mono-repo, it depends on the shared **Platfo
 
 ## ⚙️ Configuration
 
-Create a `.env` file in the root directory. You can copy `.env.example` if available.
+Create a `.env` file in the root directory (or override properties in `hub/src/main/resources/application.properties`):
 
 ```properties
-# Server Configuration
-SERVER_PORT=8080
+# Server Configuration (default local dev port: 8085)
+SERVER_PORT=8085
 
 # Database
-DB_URL=jdbc:mysql://localhost:3306/finance_hub
+DB_URL=jdbc:mysql://localhost:3308/financehub
 DB_USERNAME=root
 DB_PASSWORD=secret
 ```
@@ -91,127 +110,18 @@ DB_PASSWORD=secret
 cd finance-hub-backend
 mvn clean package
 
-# 2. Run the JAR
-java -jar hub/target/finance-hub-0.0.1-SNAPSHOT.jar
+# 2. Run the packaged JAR (output directory configured to ../bin)
+java -jar ../bin/finance-hub.jar
 ```
 
-## 🔌 API Endpoints (Overview)
+## 🔌 API Documentation (Swagger / OpenAPI)
 
-Here is the list of currently exposed REST endpoints in the system, organized by feature domains:
+Because REST endpoints evolve continuously across domains, the authoritative, always-up-to-date API reference is served directly via **Springdoc OpenAPI / Swagger UI** when the service is running:
 
-## Banking & Credit Cards
-| Method | Path | Controller | Handler | Description |
-|---|---|---|---|---|
-| POST | `/bank/extension` | BankExtensionController.java | `receiveStatementFromExtension` | Receives and processes a bank statement payload from the Chrome Extension. |
-| GET | `/bank/extension/{bankName}/{statementMonth}` | BankExtensionController.java | `getStatement` | Retrieves an existing bank statement for the Chrome Extension. |
-| GET | `/banks/balances` | BankTransactionController.java | `getBalances` | Retrieves the latest balances for all banks. |
-| GET | `/banks/transactions` | BankTransactionController.java | `getTransactions` | Retrieves a paginated list of bank transactions filtered by given criteria. |
-| GET | `/credit-cards` | CreditCardTransactionController.java | `getAvailableCardNames` | Retrieves a list of all available credit card names. |
-| GET | `/credit-cards/total-amounts` | CreditCardTransactionController.java | `getTotalAmounts` | Retrieves the total amounts grouped by card name for a given period. |
-| GET | `/credit-cards/transactions` | CreditCardTransactionController.java | `getTransactions` | Retrieves a paginated list of credit card transactions matching the given criteria. |
+*   **Swagger UI**: `http://localhost:8085/swagger-ui.html`
+*   **OpenAPI JSON**: `http://localhost:8085/v3/api-docs`
 
-## Income & Expenses
-| Method | Path | Controller | Handler | Description |
-|---|---|---|---|---|
-| GET | `/expenses` | ExpenseController.java | `getAllExpenses` | Retrieves a paginated list of all aggregated expenses. |
-| GET | `/expenses/available-sources` | ExpenseController.java | `getAvailableSources` | TODO: Add description |
-| GET | `/expenses/{id}/details` | ExpenseController.java | `getExpenseDetails` | Retrieves detailed order information for a specific expense item. |
-| GET | `/salaries` | SalaryRecordController.java | `getAllRecords` | Retrieves all salary records sorted by payment date in descending order. |
-
-## Assets & Portfolios
-| Method | Path | Controller | Handler | Description |
-|---|---|---|---|---|
-| GET | `/assets/dc` | DefinedContributionController.java | `getAllRecords` | Retrieves all DC snapshot records sorted by record date in descending order. |
-| POST | `/assets/dc/extension` | DefinedContributionController.java | `receiveDcFromExtension` | TODO: Add description |
-| PATCH | `/assets/dc/funds/{fundId}/return-rate` | DefinedContributionController.java | `updateReturnRate` | Updates the expected return rate for a specific DC fund snapshot. |
-| POST | `/assets/dc/upload` | DefinedContributionController.java | `uploadFile` | Uploads and parses a new DC HTML file. |
-| GET | `/assets/nisa` | NisaSnapshotRecordController.java | `getAllRecords` | Retrieves all NISA snapshot records sorted by record date in descending order. |
-| GET | `/assets/nisa/projection` | NisaSnapshotRecordController.java | `getProjection` | TODO: Add description |
-| GET | `/assets/pensions` | PensionRecordController.java | `getAllRecords` | Retrieves all pension records. |
-| POST | `/assets/pensions` | PensionRecordController.java | `createOrUpdateRecord` | Creates a new pension record or updates an existing one. |
-| GET | `/assets/pensions/projection` | PensionRecordController.java | `getProjection` | Calculates future pension projections. |
-| DELETE | `/assets/pensions/{id}` | PensionRecordController.java | `deleteRecord` | Deletes a pension record by its ID. |
-| GET | `/assets/company-stock/etrade` | CompanyStockController.java | `getAllSnapshots` | Retrieves all company stock snapshots. |
-| GET | `/assets/company-stock/etrade/cash-transactions` | CompanyStockController.java | `getCashTransactions` | TODO: Add description |
-| GET | `/assets/company-stock/etrade/espp` | CompanyStockController.java | `getEspp` | TODO: Add description |
-| POST | `/assets/company-stock/etrade/extension` | CompanyStockController.java | `receiveETradeFromExtension` | Upload a parsed E-Trade JSON payload to update the snapshot. |
-| GET | `/assets/company-stock/etrade/lots` | CompanyStockController.java | `getLots` | TODO: Add description |
-| GET | `/assets/company-stock/etrade/rsu-events` | CompanyStockController.java | `getRsuEvents` | TODO: Add description |
-| GET | `/assets/company-stock/etrade/rsu-grants` | CompanyStockController.java | `getRsuGrants` | TODO: Add description |
-| GET | `/assets/company-stock/etrade/rsu-vest-schedules` | CompanyStockController.java | `getRsuVestSchedules` | TODO: Add description |
-| POST | `/assets/company-stock/etrade/upload` | CompanyStockController.java | `uploadETradeFile` | Upload a holdings.html file to update the current company stock asset snapshot. |
-
-## Categorization & AI
-| Method | Path | Controller | Handler | Description |
-|---|---|---|---|---|
-| GET | `/ai-categorization/export` | AiCategorizationController.java | `exportUncategorizedItems` | Exports uncategorized items as a CSV file. |
-| POST | `/ai-categorization/import` | AiCategorizationController.java | `importCategorizedItems` | Imports categorized items from an uploaded CSV file. |
-| GET | `/transaction-categories` | CategoryController.java | `getAllCategories` | Retrieves all available transaction categories. |
-| POST | `/transaction-categories` | CategoryController.java | `createCategory` | Creates a new transaction category. |
-| DELETE | `/transaction-categories/{id}` | CategoryController.java | `deleteCategory` | Deletes a transaction category by its ID. |
-| GET | `/transaction-categories/{id}` | CategoryController.java | `getCategoryById` | Retrieves a specific transaction category by its ID. |
-| PUT | `/transaction-categories/{id}` | CategoryController.java | `updateCategory` | Updates an existing transaction category. |
-
-## Reconciliation & Shopping Extensions
-| Method | Path | Controller | Handler | Description |
-|---|---|---|---|---|
-| GET | `/reconciliation/amazon-orders/search` | ReconciliationController.java | `searchUnmatchedAmazonOrders` | TODO: Add description |
-| POST | `/reconciliation/link` | ReconciliationController.java | `linkTransaction` | TODO: Add description |
-| GET | `/reconciliation/unmatched` | ReconciliationController.java | `getUnmatchedTransactions` | TODO: Add description |
-| GET | `/reconciliation/{transactionId}/suggestions` | ReconciliationController.java | `getSuggestions` | TODO: Add description |
-| POST | `/amazon/extension` | AmazonExtensionController.java | `receiveOrderFromExtension` | Receives and processes an Amazon order payload from the Chrome Extension. |
-| POST | `/rakuten/extension` | RakutenExtensionController.java | `receiveOrderFromExtension` | Receives and processes a Rakuten order payload from the Chrome Extension. |
-| POST | `/sofmap/extension` | SofmapExtensionController.java | `receiveOrderFromExtension` | Receives and processes a Sofmap order payload from the Chrome Extension. |
-| GET | `/sofmap/extension/{orderId}` | SofmapExtensionController.java | `getOrderForExtension` | Retrieves an existing Sofmap order with all details for the Chrome Extension. |
-
-## Asset Projection & Life Event Simulation
-| Method | Path | Controller | Handler | Description |
-|---|---|---|---|---|
-| GET | `/simulation/career-events` | CareerEventController.java | `getEvents` | TODO: Add description |
-| POST | `/simulation/career-events` | CareerEventController.java | `createEvent` | TODO: Add description |
-| DELETE | `/simulation/career-events/{id}` | CareerEventController.java | `deleteEvent` | TODO: Add description |
-| GET | `/simulation/asset-simulation/{targetAge}` | AssetSimulationController.java | `runSimulation` | Runs the lifelong asset projection simulation up to the target age. |
-| GET | `/simulation/life-events` | LifeEventController.java | `getEvents` | TODO: Add description |
-| POST | `/simulation/life-events` | LifeEventController.java | `createEvent` | TODO: Add description |
-| DELETE | `/simulation/life-events/{id}` | LifeEventController.java | `deleteEvent` | TODO: Add description |
-
-## Background Tasks & Scheduler
-| Method | Path | Controller | Handler | Description |
-|---|---|---|---|---|
-| DELETE | `/tasks/deletion` | DataCleanupController.java | `cleanUp` | Deletes all transactional data processed by the Finance Hub. |
-| POST | `/tasks/scheduler/start` | SchedulerController.java | `startScheduler` | Starts the scheduled background jobs for auto-processing financial data. |
-| GET | `/tasks/scheduler/status` | SchedulerController.java | `getSchedulerStatus` | Retrieves the current status of the global task scheduler. |
-| POST | `/tasks/scheduler/stop` | SchedulerController.java | `stopScheduler` | Stops the scheduled background jobs. |
-| GET | `/tasks/{transactionSource}/history` | JobHistoryController.java | `getJobHistory` | Retrieves the paginated job history for a given transaction source. |
-| POST | `/tasks/{transactionSource}/process` | TransactionSourceTaskController.java | `processData` | Initiates asynchronous data processing for a specific transaction source. |
-| GET | `/tasks/{transactionSource}/status` | TransactionSourceTaskController.java | `getProcessStatus` | Checks if a processing job is currently running for the specified transaction source. |
-| POST | `/tasks/{transactionSource}/upload` | TransactionSourceTaskController.java | `uploadFile` | Uploads and processes a financial data file for a specific transaction source. |
-
-## System & Configurations
-| Method | Path | Controller | Handler | Description |
-|---|---|---|---|---|
-| GET | `/health` | HealthCheckController.java | `healthCheck` | Provides a health check endpoint for the main backend service. |
-| DELETE | `/configs/system` | FinanceHubConfigController.java | `deleteAllConfigs` | Deletes all global configurations. |
-| GET | `/configs/system` | FinanceHubConfigController.java | `getAllConfigs` | Retrieves the names of all available global configurations and identifies which one is currently enabled. |
-| POST | `/configs/system` | FinanceHubConfigController.java | `createConfig` | Creates a new global configuration. |
-| DELETE | `/configs/system/{name}` | FinanceHubConfigController.java | `deleteConfig` | Deletes a specific global configuration by its name. |
-| GET | `/configs/system/{name}` | FinanceHubConfigController.java | `getConfig` | Retrieves a specific global configuration by its name. |
-| PATCH | `/configs/system/{name}` | FinanceHubConfigController.java | `saveConfig` | Creates or partially updates a specific global configuration. |
-| DELETE | `/configs/transaction-sources` | SchedulingConfigController.java | `deleteAllConfigs` | Deletes all hub configurations. |
-| GET | `/configs/transaction-sources/supported` | SchedulingConfigController.java | `getSupported` | Retrieves a list of all transaction sources that currently have an active executor strategy registered in the system. |
-| GET | `/configs/transaction-sources/timezones` | SchedulingConfigController.java | `getTimeZones` | Retrieves a list of clean and sorted time zones. |
-| GET | `/configs/transaction-sources/types` | SchedulingConfigController.java | `getTypes` | Retrieves all available transaction sources. |
-| GET | `/configs/transaction-sources/{transactionSource}` | SchedulingConfigController.java | `getAllConfigs` | Retrieves the names of all available hub configurations and identifies which one is currently enabled. |
-| POST | `/configs/transaction-sources/{transactionSource}` | SchedulingConfigController.java | `createConfig` | Creates a new hub configuration. |
-| DELETE | `/configs/transaction-sources/{transactionSource}/{name}` | SchedulingConfigController.java | `deleteConfig` | Deletes a specific hub configuration by its name. |
-| GET | `/configs/transaction-sources/{transactionSource}/{name}` | SchedulingConfigController.java | `getConfig` | Retrieves a specific hub configuration by its name. |
-| PATCH | `/configs/transaction-sources/{transactionSource}/{name}` | SchedulingConfigController.java | `saveConfig` | Creates or partially updates a specific hub configuration. |
-| GET | `/configs/transaction-sources/{transactionSource}/{name}/resolved` | SchedulingConfigController.java | `getResolvedConfig` | Resolves and returns the appropriate hub configuration. |
-
-## Reports
-| Method | Path | Controller | Handler | Description |
-|---|---|---|---|---|
-| GET | `/reports/summary` | ReportController.java | `downloadSummaryReport` | Generates and downloads a summary report in Markdown format. |
+*(In local development, `app.security.swagger-public=true` exposes Swagger UI without requiring a JWT.)*
 
 ## 📜 License
 
