@@ -24,26 +24,25 @@ Hibernate官方文件明確記載：filter只套用在entity query（HQL/JPQL/Cr
 
 | 端點 | Controller | Service方法 |
 |---|---|---|
-| `PUT /mortgages/{id}`、`DELETE /mortgages/{id}` | [MortgageRecordController.java:73-83](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/accounting/mortgage/MortgageRecordController.java) | [MortgageRecordServiceImpl.java:166,203-205](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/accounting/mortgage/MortgageRecordServiceImpl.java)——`updateMortgage`在171行`findById`後完全沒檢查擁有者就直接改寫全部欄位；`deleteMortgage`在204行`deleteById`沒有任何檢查。（注意：同一個Service裡`validateAndApplyTaxLogic`在**啟用稅務抵扣這個分支**內有做`record.getOwnerUserId().equals(currentUserId)`檢查，但這個檢查只覆蓋稅務欄位，不覆蓋`updateMortgage`其餘欄位跟`deleteMortgage`。） |
-| `GET/PUT/DELETE /insurance-policies/{id}` | [InsurancePolicyController.java:63-89](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/accounting/insurance/InsurancePolicyController.java) | [InsurancePolicyServiceImpl.java:59-93](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/accounting/insurance/InsurancePolicyServiceImpl.java)——`getPolicy`/`updatePolicy`/`deletePolicy`三個方法全部直接`findById`/`deleteById`，整個class找不到一處`ownerUserId`比對。 |
-| `DELETE /assets/pensions/{id}` | [PensionRecordController.java:123-124](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/accounting/pension/PensionRecordController.java) | [PensionRecordServiceImpl.java:77-78,120-122](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/accounting/pension/PensionRecordServiceImpl.java)——`getRecordById`/`deleteRecord`无擁有者檢查。 |
-| `GET/PUT/DELETE /transaction-categories/{id}` | [CategoryController.java:79-120](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/accounting/category/CategoryController.java) | [CategoryServiceImpl.java:69,103,131](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/accounting/category/CategoryServiceImpl.java)——`updateCategory`/`deleteCategory`无擁有者檢查。 |
-| `PUT /salaries/{id}` | [SalaryRecordController.java:105-107](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/accounting/salary/SalaryRecordController.java) | [SalaryRecordServiceImpl.java:81-83](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/accounting/salary/SalaryRecordServiceImpl.java)——`updateRecord`无擁有者檢查，整筆覆寫薪資明細。 |
-| `PATCH/DELETE /profile/children/{id}`、`GET /profile/children/{id}/projection` | [ChildProfileController.java:75-93](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/profile/child/ChildProfileController.java) | [ChildProfileServiceImpl.java:81-84,104-123](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/profile/child/ChildProfileServiceImpl.java)——`getInternalChildProfile`被`getChildProfile`/`updateChildProfile`/`deleteChildProfile`/`getEducationProjections`共用，无擁有者檢查，會洩漏小孩的生日跟教育費推算。 |
-| `GET/PUT/DELETE /profile/children/{childProfileId}/education-settings` | [ChildEducationSettingsController.java](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/profile/child/education/ChildEducationSettingsController.java) | [ChildEducationSettingsServiceImpl.java:63,78,194](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/profile/child/education/ChildEducationSettingsServiceImpl.java)——同样只查`ChildProfile`是否存在，不比对擁有者。 |
-| `PATCH /assets/nisa/{id}/return-rate` | [NisaSnapshotRecordController.java:110-111](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/accounting/nisa/NisaSnapshotRecordController.java) | [NisaSnapshotRecordServiceImpl.java:56](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/accounting/nisa/NisaSnapshotRecordServiceImpl.java)——无擁有者檢查。 |
-| `PATCH /assets/nisa-contributions/{id}/allocation` | [NisaContributionSettingController.java:81-82](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/accounting/nisa/NisaContributionSettingController.java) | [NisaContributionSettingServiceImpl.java:56](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/accounting/nisa/NisaContributionSettingServiceImpl.java)——无擁有者檢查。 |
-| `DELETE /assets/dc/{id}`、`PATCH /assets/dc/funds/{fundId}/allocation` | [DefinedContributionController.java:174-189](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/accounting/dc/DefinedContributionController.java) | [DefinedContributionServiceImpl.java:114,135](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/accounting/dc/DefinedContributionServiceImpl.java)——`updateAllocation`/`deleteSnapshotById`无擁有者檢查。 |
-| `DELETE /events/career/{id}` | [CareerEventController.java:79-80](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/event/CareerEventController.java) | [CareerEventServiceImpl.java:81-83](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/event/CareerEventServiceImpl.java)——无擁有者檢查。 |
-| `DELETE /events/life/{id}` | [LifeEventController.java:80-81](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/event/LifeEventController.java) | [LifeEventServiceImpl.java:70-72](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/event/LifeEventServiceImpl.java)——无擁有者檢查。 |
+| `PUT /mortgages/{id}`、`DELETE /mortgages/{id}` | [MortgageRecordController.java:62-74](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/accounting/mortgage/MortgageRecordController.java) | [MortgageRecordServiceImpl.java:165,208-210](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/accounting/mortgage/MortgageRecordServiceImpl.java)——`updateMortgage`在170行`findById`後完全沒檢查擁有者就直接改寫全部欄位；`deleteMortgage`在209行`deleteById`沒有任何檢查。（注意：同一個Service裡`validateAndApplyTaxLogic`在**啟用稅務抵扣這個分支**內有做`record.getOwnerUserId().equals(currentUserId)`檢查，但這個檢查只覆蓋稅務欄位，不覆蓋`updateMortgage`其餘欄位跟`deleteMortgage`。） |
+| `GET/PUT/DELETE /insurance-policies/{id}` | [InsurancePolicyController.java:52-78](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/accounting/insurance/InsurancePolicyController.java) | [InsurancePolicyServiceImpl.java:48-86](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/accounting/insurance/InsurancePolicyServiceImpl.java)——`getPolicy`/`updatePolicy`/`deletePolicy`三個方法全部直接`findById`/`deleteById`，整個class找不到一處`ownerUserId`比對。 |
+| `DELETE /assets/pensions/{id}` | [PensionRecordController.java:111-115](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/accounting/pension/PensionRecordController.java) | [PensionRecordServiceImpl.java:66-68,109-111](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/accounting/pension/PensionRecordServiceImpl.java)——`getRecordById`/`deleteRecord`无擁有者檢查。 |
+| `GET/PUT/DELETE /transaction-categories/{id}` | [CategoryController.java:68-112](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/accounting/category/CategoryController.java) | [CategoryServiceImpl.java:58,92,118-121](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/accounting/category/CategoryServiceImpl.java)——`updateCategory`/`deleteCategory`无擁有者檢查。 |
+| `PUT /salaries/{id}` | [SalaryRecordController.java:94-101](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/accounting/salary/SalaryRecordController.java) | [SalaryRecordServiceImpl.java:71-74](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/accounting/salary/SalaryRecordServiceImpl.java)——`updateRecord`无擁有者檢查，整筆覆寫薪資明細。 |
+| `PATCH/DELETE /profile/children/{id}`、`GET /profile/children/{id}/projection` | [ChildProfileController.java:64-83](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/profile/child/ChildProfileController.java) | [ChildProfileServiceImpl.java:70-73,95-117](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/profile/child/ChildProfileServiceImpl.java)——`getInternalChildProfile`被`getChildProfile`/`updateChildProfile`/`deleteChildProfile`/`getEducationProjections`共用，无擁有者檢查，會洩漏小孩的生日跟教育費推算。 |
+| `GET/PUT/DELETE /profile/children/{childProfileId}/education-settings` | [ChildEducationSettingsController.java](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/profile/child/education/ChildEducationSettingsController.java) | [ChildEducationSettingsServiceImpl.java:52,67,183](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/profile/child/education/ChildEducationSettingsServiceImpl.java)——同样只查`ChildProfile`是否存在，不比对擁有者。 |
+| `PATCH /assets/nisa/{id}/return-rate` | [NisaSnapshotRecordController.java:99-107](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/accounting/nisa/NisaSnapshotRecordController.java) | [NisaSnapshotRecordServiceImpl.java:45](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/accounting/nisa/NisaSnapshotRecordServiceImpl.java)——无擁有者檢查。 |
+| `DELETE /assets/dc/{id}`、`PATCH /assets/dc/funds/{fundId}/allocation`、`PATCH /assets/dc/accounts/{accountId}/allocations` | [DefinedContributionController.java:165-202](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/accounting/dc/DefinedContributionController.java) | [DefinedContributionServiceImpl.java:111,130,168-171](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/accounting/dc/DefinedContributionServiceImpl.java)——`updateAllocation`/`updateAccountAllocations`/`deleteSnapshotById`无擁有者檢查。 |
+| `DELETE /events/career/{id}` | [CareerEventController.java:68-72](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/event/CareerEventController.java) | [CareerEventServiceImpl.java:70-73](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/event/CareerEventServiceImpl.java)——无擁有者檢查。 |
+| `DELETE /events/life/{id}` | [LifeEventController.java:69-73](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/event/LifeEventController.java) | [LifeEventServiceImpl.java:59-62](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/event/LifeEventServiceImpl.java)——无擁有者檢查。 |
 
-以上每一筆都是我自己讀取檔案逐行核對、不是沿用agent報告的清單直接採信——核對過程中也排除了一個agent報告沒提、但我主動檢查過的疑似案例：`UserProfileServiceImpl.getUserProfile`/`saveUserProfile`雖然也用`findById(id)`，但`UserProfile`不是`MultiUserBaseEntity`子類別，它的主鍵本身就等於JWT裡的`sub`（使用者自己的ID），且[UserProfileController.java:53-70](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/profile/user/UserProfileController.java)固定是`/user-profiles/me`端點、`id`直接從JWT取得而不是從URL path variable取得，使用者沒有輸入任何可以用來指向別人ID的管道，不構成IDOR，不列入上表。
+以上每一筆都是我自己讀取檔案逐行核對、不是沿用agent報告的清單直接採信——核對過程中也排除了一個agent報告沒提、但我主動檢查過的疑似案例：`UserProfileServiceImpl.getUserProfile`/`saveUserProfile`雖然也用`findById(id)`，但`UserProfile`不是`MultiUserBaseEntity`子類別，它的主鍵本身就等於JWT裡的`sub`（使用者自己的ID），且[UserProfileController.java:42-59](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/profile/user/UserProfileController.java)固定是`/user-profiles/me`端點、`id`直接從JWT取得而不是從URL path variable取得，使用者沒有輸入任何可以用來指向別人ID的管道，不構成IDOR，不列入上表。
 
 ## 影響範疇（第一種症狀：IDOR）
 這些端點涵蓋房貸、保險、年金、薪資、分類、小孩資料、NISA、DC/iDeCo、人生事件——幾乎是整個REST API表層裡「單筆資源CRUD」這一類端點的全部。只要攻擊者是系統裡任何一個已登入使用者（不需要跟被害者有任何家族關係），對這些端點打一個猜測的數字ID，就能讀取/竄改/刪除其他使用者的真實財務資料。三級隱私層級、家族Filter這整套機制，對這些端點完全不生效——不管`privacyLevel`是`PRIVATE`還是`SHARED`，不管有沒有家族關係都一樣。
 
 ## 建議修正方向（第一種症狀：IDOR）
-修法本身並不複雜，核心是在每個Service的`findById`/`update`/`delete`之前，統一比對`entity.getOwnerUserId()`（或家族成員名單）跟目前使用者，仿照`MortgageRecordServiceImpl.validateAndApplyTaxLogic`裡已經存在的那段檢查模式（70行附近），全面補齊到所有依ID操作的入口。因為同一個模式要在十幾個Service裡重複套用，比較適合的做法可能是一個共用的ownership檢查工具方法或AOP切面，而不是逐一手刻——但這個設計決定留給你判斷，這裡不代為拍板。
+修法本身並不複雜，核心是在每個Service的`findById`/`update`/`delete`之前，統一比對`entity.getOwnerUserId()`（或家族成員名單）跟目前使用者，仿照`MortgageRecordServiceImpl.validateAndApplyTaxLogic`裡已經存在的那段檢查模式（60行附近），全面補齊到所有依ID操作的入口。因為同一個模式要在十幾個Service裡重複套用，比較適合的做法可能是一個共用的ownership檢查工具方法或AOP切面，而不是逐一手刻——但這個設計決定留給你判斷，這裡不代為拍板。
 
 ---
 
@@ -56,19 +55,19 @@ Hibernate官方文件明確記載：filter只套用在entity query（HQL/JPQL/Cr
 
 ### 相關檔案（已確認，不只房貸一處）
 `SimulationContextFactory`本身跟它委派出去的四個`XxxContextBuilder`，建立模擬所需的整套財務資料時，用的查詢方法全部是這個模式——方法名稱裡完全沒有`OwnerUserId`這個字樣，全部依賴目前request啟用的filter決定範圍：
-- `finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/SimulationContextFactory.java:158`（`childProfileRepository.findAll()`，小孩資料）
-- 同檔案`:183-186`（`etradeRepository.findFirstByOrderByRecordDateDesc()`，E-Trade股票帳戶快照）
-- 同檔案`:190-193`（`bankTransactionRepository.findDistinctBankNames()`、`findFirstByBankNameOrderByTransactionDateDesc()`，銀行現金餘額）
-- 同檔案`:200`（`mortgageRecordRepository.findAll()`，房貸）
-- 同檔案`:203`（`insurancePolicyRepository.findAll()`，保單）
-- `finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/SalaryContextBuilder.java:69,85`（`salaryUserSettingsRepository.findFirstBy()`、`salaryRecordRepository.findAllByOrderByPaymentDateDesc()`，薪資）
-- `finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/NisaContextBuilder.java:52,54,57,111`（NISA快照、設定、提繳分配）
-- `finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/DefinedContributionContextBuilder.java:48,49,122`（企業DC、iDeCo快照跟設定）
-- `finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/PensionContextBuilder.java:48`（`findAll(Sort.by(...))`，年金紀錄）
-- `finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/AssetSimulationEngineImpl.java:83`（`mortgageRecordRepository.findAll()`，跟`SimulationContextFactory`裡的房貸查詢是獨立的第二處）
-- `finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/AssetSimulationEngineImpl.java:81`（`careerEventRepository.findAllByOrderByEventYearMonthAsc()`，職涯事件——跟上面房貸查詢同一個方法`fetchSimulationData()`裡，當初枚舉時漏列了同一方法裡緊鄰的這兩行）
-- 同檔案`:82`（`lifeEventRepository.findAllByOrderByStartYearMonthAsc()`，人生事件——同樣的漏列）
-- `finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/config/OwnerFilterInterceptor.java:79-92`（`X-View-Scope: FAMILY`這個header會啟用`familyFilter`，查詢範圍會涵蓋`familyService.getFamilyMemberIds(userId)`回傳的所有家族成員）
+- `finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/SimulationContextFactory.java:111`（`childProfileRepository.findAll()`，小孩資料）
+- 同檔案`:136-139`（`etradeRepository.findFirstByOrderByRecordDateDesc()`，E-Trade股票帳戶快照）
+- 同檔案`:143-146`（`bankTransactionRepository.findDistinctBankNames()`、`findFirstByBankNameOrderByTransactionDateDesc()`，銀行現金餘額）
+- 同檔案`:153`（`mortgageRecordRepository.findAll()`，房貸）
+- 同檔案`:156`（`insurancePolicyRepository.findAll()`，保單）
+- `finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/SalaryContextBuilder.java:58,74`（`salaryUserSettingsRepository.findFirstBy()`、`salaryRecordRepository.findAllByOrderByPaymentDateDesc()`，薪資）
+- `finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/NisaContextBuilder.java:42,44,47,101`（NISA快照、設定、提繳分配）
+- `finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/DefinedContributionContextBuilder.java:37,38,109`（企業DC、iDeCo快照跟設定）
+- `finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/PensionContextBuilder.java:36-37`（`findAll(Sort.by(...))`，年金紀錄）
+- `finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/AssetSimulationEngineImpl.java:72`（`mortgageRecordRepository.findAll()`，跟`SimulationContextFactory`裡的房貸查詢是獨立的第二處）
+- `finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/AssetSimulationEngineImpl.java:70`（`careerEventRepository.findAllByOrderByEventYearMonthAsc()`，職涯事件——跟上面房貸查詢同一個方法`fetchSimulationData()`裡，當初枚舉時漏列了同一方法裡緊鄰的這兩行）
+- 同檔案`:71`（`lifeEventRepository.findAllByOrderByStartYearMonthAsc()`，人生事件——同樣的漏列）
+- `finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/config/OwnerFilterInterceptor.java:68-81`（`X-View-Scope: FAMILY`這個header會啟用`familyFilter`，查詢範圍會涵蓋`familyService.getFamilyMemberIds(userId)`回傳的所有家族成員）
 
 ### 現狀
 以上所有實體都繼承`MultiUserBaseEntity`，查詢時理論上會受`personalFilter`（預設，只看自己的）或`familyFilter`（`X-View-Scope: FAMILY`時，看得到全家）這兩個Hibernate filter的其中一個約束。但上面列出的每一處查詢，完全沒有另外加`ownerUserId`條件去限定「只抓自己的」——它們依賴的是目前這次request啟用了哪個filter，而不是自己主動限定範圍。
@@ -115,19 +114,22 @@ Hibernate `@Filter` 之所以對 `findById(id)` 失效，是因為 Spring Data J
 ```java
 public class MultiUserJpaRepositoryImpl<T, ID> extends SimpleJpaRepository<T, ID> {
 
+    private final JpaEntityInformation<T, ?> entityInformation;
     private final EntityManager entityManager;
 
     public MultiUserJpaRepositoryImpl(JpaEntityInformation<T, ?> entityInformation, EntityManager entityManager) {
         super(entityInformation, entityManager);
+        this.entityInformation = entityInformation;
         this.entityManager = entityManager;
     }
 
     @Override
     public Optional<T> findById(ID id) {
+        Assert.notNull(id, "The given id must not be null");
         // 若該 Entity 繼承 MultiUserBaseEntity，改走 JPQL 查詢！
         // 一旦走 JPQL，當前 Session 啟用的 personalFilter 或 familyFilter 就會 100% 自動追加條件！
         if (MultiUserBaseEntity.class.isAssignableFrom(getDomainClass())) {
-            String jpql = "SELECT e FROM " + getDomainClass().getSimpleName() + " e WHERE e.id = :id";
+            String jpql = "SELECT e FROM " + entityInformation.getEntityName() + " e WHERE e.id = :id";
             return entityManager.createQuery(jpql, getDomainClass())
                     .setParameter("id", id)
                     .getResultStream()
@@ -145,39 +147,18 @@ public class MultiUserJpaRepositoryImpl<T, ID> extends SimpleJpaRepository<T, ID
 
 ---
 
-### 2. 針對 `deleteById`（刪除操作）的設計：保留未來「世帯主」管理刪除的擴充性
+### 2. 針對異動與刪除操作（`PUT` / `PATCH` / `DELETE`）的設計：讀寫 Scope 分離，杜絕誤改與誤刪家人資料
 
-原先曾考慮在 `deleteById` 強制硬編碼 `e.ownerUserId = :currentUserId`，但經檢討，未來規劃可能支援「世帯主（戶長）」管理或刪除家族成員資料的功能，若在底層 Repository 硬性鎖死本人會妨礙未來擴充。
+若讓 `PUT` / `PATCH` / `DELETE` 也跟著 `X-View-Scope: FAMILY` 套用 `familyFilter`，由於 `MultiUserBaseEntity` 預設 `privacyLevel = SHARED`，家族成員在家族檢視模式下會合法查出對方的共享資料並直接覆寫或誤刪。
 
-因此，**`deleteById` 遵循與 `findById` 相同的解法 1 機制**：於 `MultiUserJpaRepositoryImpl` 中改走 JPQL 查詢實體後再刪除，使之正常套用當前啟用的 Filter：
-
-```java
-    @Override
-    @Transactional
-    public void deleteById(ID id) {
-        Assert.notNull(id, "The given id must not be null");
-
-        if (MultiUserBaseEntity.class.isAssignableFrom(getDomainClass())) {
-            // 改走 JPQL 查詢，正常套用 Hibernate Filter（個人模式下杜絕 IDOR 跨用戶刪除）
-            String jpql = "SELECT e FROM " + getDomainClass().getSimpleName() + " e WHERE e.id = :id";
-            T entity = entityManager.createQuery(jpql, getDomainClass())
-                    .setParameter("id", id)
-                    .getResultStream()
-                    .findFirst()
-                    .orElseThrow(() -> new EntityNotFoundException(
-                            getDomainClass().getSimpleName() + " not found with id: " + id));
-
-            entityManager.remove(entity);
-            return;
-        }
-
-        super.deleteById(id);
-    }
-```
+因此，必須實施**讀寫 Scope 分離**：
+- **唯讀查詢（`GET`）**：允許依 `X-View-Scope: FAMILY` 啟用 `familyFilter`（查看家人 `SHARED` 資料），未帶則啟用 `personalFilter`。
+- **所有異動請求（`POST` / `PUT` / `PATCH` / `DELETE`）**：一律忽略 `FAMILY` Header，**強制鎖定 `personalFilter`（`owner_user_id = :userId`）**。（未來若實作「世帯主（戶長）」管理或刪除家人資料功能，屆時再依明確的 `FamilyRole.ADMIN` 業務權限顯式放行，不在底層預設敞開。）
+- **Filter 綁定時機（配合 `spring.jpa.open-in-view=false`）**：由於專案關閉了 OSIV，`OwnerFilterInterceptor` 僅負責解析請求的目標 Scope 存入請求上下文，實際呼叫 `session.enableFilter(...)` 統一在 `@Transactional` 開啟 Session 時自動掛載，確保每次交易內的 JPQL 都確實帶上 Filter。
 
 * **效益**：
-  - **個人模式（預設）**：受 `personalFilter` 保護，查不到他人資料（404），徹底杜絕跨戶越權刪除（IDOR）。
-  - **家族模式（未來擴充）**：保有彈性，世帯主是否有權刪除家人資料交由未來的家族角色與業務權限層決定，底層 Repository 不會過度設限。
+  - **15 個 Service 依然 0 行改動**：`PUT` / `PATCH` 的 `findById` 與 `DELETE` 的 `deleteById` 在異動請求下 100% 受 `personalFilter` 約束，非本人資料一律查無結果，徹底杜絕跨戶 IDOR 與家族內誤刪／誤改。
+  - **保留家族共享讀取**：`GET` 列表與單筆查詢仍正常支援 `FAMILY` 視角。
 
 ---
 
@@ -211,16 +192,16 @@ public class MultiUserJpaRepositoryImpl<T, ID> extends SimpleJpaRepository<T, ID
 `SimulationContextFactory` 與四個 `XxxContextBuilder` 抓取資料時，本質是**「純個人財務試算」**，與前端用來顯示列表的 `X-View-Scope: FAMILY` 完全無關。
 
 **可採行的兩種乾淨途徑**：
-- **途徑 A（進入點鎖定 Scope，推薦）**：
-  在進入模擬引擎或 `SimulationContextFactory.createContext()` 的入口，強制將 Session Filter 鎖定為當前使用者的 `personalFilter`（或暫時關閉 `familyFilter`）：
+- **途徑 B（Repository 顯式宣告，推薦）**：
+  在模擬與試算專用的查詢方法中，明確宣告 `findAllByOwnerUserId(currentUserId)`（包含不經過 `SimulationContextFactory` 的年金試算 `PensionProjectionServiceImpl` 與最佳化器 `GlobalOptimizerServiceImpl`）。即便環境開啟了 `familyFilter`（例如 `GET /assets/pensions/projection`），SQL 條件交集後依然 100% 嚴格鎖定本人，且不依賴交易邊界或改動 Session 全域狀態。
+- **途徑 A（進入點鎖定 Scope，輔助／備案）**：
+  在模擬引擎的 `@Transactional` 入口將當前 Session Filter 切換為 `personalFilter`（結束時還原）：
   ```java
   Session session = entityManager.unwrap(Session.class);
   session.disableFilter("familyFilter");
   session.enableFilter("personalFilter").setParameter("userId", currentUserId);
   ```
-  確保後續所有 `findAll()` 查詢只會抓出目前使用者本人的資料，不被前端 Header 影響。
-- **途徑 B（Repository 顯式宣告）**：
-  在模擬引擎專用的查詢方法中，明確宣告 `findAllByOwnerUserId(currentUserId)`。即便環境開啟了 `familyFilter`，SQL 條件交集後依然嚴格鎖定本人。
+  注意此途徑僅保護同一個交易與入口內的查詢，對入口外的獨立查詢無效，因此仍建議以途徑 B 為主。
 
 ---
 
@@ -237,15 +218,15 @@ public class MultiUserJpaRepositoryImpl<T, ID> extends SimpleJpaRepository<T, ID
 | 操作類別 | 呼叫方式 | 攔截與防護機制 | 權限邊界 |
 |---|---|---|---|
 | **一般列表查詢**<br>（GET `/mortgages` 等） | `repository.findAll()` | 依 Request Header 套用 `personalFilter` 或 `familyFilter` | 個人模式看自己；家族模式看家人 SHARED 資料 |
-| **一般單筆查詢**<br>（GET `/mortgages/{id}`） | `repository.findById(id)` | **【解法 1】** `MultiUserJpaRepositoryImpl` 改走 JPQL 套用 Filter | 依當前 Scope 自動過濾，杜絕 IDOR 任意越權讀取 |
-| **單筆刪除操作**<br>（DELETE `/mortgages/{id}`） | `repository.deleteById(id)` | **【解法 1】** `MultiUserJpaRepositoryImpl` 改走 JPQL 套用 Filter | 杜絕跨戶越權刪除；為未來世帯主管理家族資料保留擴充彈性 |
+| **一般單筆查詢**<br>（GET `/insurance-policies/{id}` 等） | `repository.findById(id)` | **【解法 1】** `MultiUserJpaRepositoryImpl` 改走 JPQL 套用 Filter | 依當前 `GET` Scope 自動過濾，個人看自己、家族看 SHARED，杜絕 IDOR |
+| **單筆修改／刪除操作**<br>（PUT / PATCH / DELETE `/{id}`） | `repository.findById(id)`<br>`repository.deleteById(id)` | **【解法 1】**＋非 `GET` 強制鎖定 `personalFilter` | **100% 鎖定本人**，杜絕跨戶 IDOR 與家族模式下誤改／誤刪家人資料 |
 | **個人設定查詢/更新**<br>（GET/PUT `/settings`） | `repository.findByOwnerUserId(currentUserId)` | 明確以 `ownerUserId` 查詢 | **100% 鎖定本人**，家族模式下絕不隨機碰撞或覆寫他人設定 |
 | **財務模擬試算**<br>（POST `/simulations/run`） | `SimulationContextFactory` | **【解法 2】** 強制鎖定 Personal Scope 或顯式 `ownerUserId` 查詢 | **僅限本人財務**，稅務、年金與現金流絕不受配偶資料污染 |
 | **背景 Job 排程** | 排程定時執行 | 即將棄用（由 Chrome Extension 取代） | 無需過度工程重構上下文注入 |
 
 ---
 
-### 7. 報告涵蓋端點與查詢點之完整防衛對照表（覆蓋第 22～69 行所有項目）
+### 7. 報告涵蓋端點與查詢點之完整防衛對照表（覆蓋第 22～70 行所有項目）
 
 #### 表一：第一種症狀（IDOR 單筆 CRUD 端點 $\rightarrow$ 全部由【解法 1】全域防衛）
 
@@ -253,18 +234,17 @@ public class MultiUserJpaRepositoryImpl<T, ID> extends SimpleJpaRepository<T, ID
 
 | 端點 | 相關檔案與位置 | 原始脆弱呼叫 | 負責防衛的解法 | 防衛生效原理與效果 |
 |---|---|---|---|---|
-| `PUT /mortgages/{id}`<br>`DELETE /mortgages/{id}` | [`MortgageRecordController.java:73-83`](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/accounting/mortgage/MortgageRecordController.java)<br>[`MortgageRecordServiceImpl.java:166,203`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/accounting/mortgage/MortgageRecordServiceImpl.java) | `repository.findById(id)`<br>`repository.deleteById(id)` | **【解法 1】BaseRepository** | 查詢與刪除皆改走 JPQL 套用 Filter：個人模式下查他人房貸回傳 404；刪除操作受 Filter 約束，杜絕 IDOR 惡意刪除。 |
-| `GET/PUT/DELETE`<br>`/insurance-policies/{id}` | [`InsurancePolicyController.java:63-89`](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/accounting/insurance/InsurancePolicyController.java)<br>[`InsurancePolicyServiceImpl.java:59-93`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/accounting/insurance/InsurancePolicyServiceImpl.java) | `repository.findById(id)`<br>`repository.deleteById(id)` | **【解法 1】BaseRepository** | 讀取、更新、刪除保單時自動附加 Filter 條件，非本人或非家族共享保單直接回傳 404。 |
-| `DELETE /assets/pensions/{id}` | [`PensionRecordController.java:123`](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/accounting/pension/PensionRecordController.java)<br>[`PensionRecordServiceImpl.java:77,120`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/accounting/pension/PensionRecordServiceImpl.java) | `pensionRecordRepository.findById(id)`<br>`pensionRecordRepository.deleteById(id)` | **【解法 1】BaseRepository** | 年金紀錄單筆查閱與刪除自動套用 Filter，跨戶惡意操作回傳 404。 |
-| `GET/PUT/DELETE`<br>`/transaction-categories/{id}` | [`CategoryController.java:79-120`](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/accounting/category/CategoryController.java)<br>[`CategoryServiceImpl.java:69,103,131`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/accounting/category/CategoryServiceImpl.java) | `categoryRepository.findById(id)`<br>`categoryRepository.findById(parentId)`<br>`categoryRepository.deleteById(id)` | **【解法 1】BaseRepository** | 分類本體與綁定父分類時皆會過濾，防止將他人分類設為父分類或刪除他人分類。 |
-| `PUT /salaries/{id}` | [`SalaryRecordController.java:105`](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/accounting/salary/SalaryRecordController.java)<br>[`SalaryRecordServiceImpl.java:81-83`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/accounting/salary/SalaryRecordServiceImpl.java) | `salaryRecordRepository.findById(id)` | **【解法 1】BaseRepository** | 修改薪資明細時改走 JPQL，杜絕竄改他人薪資單。 |
-| `PATCH/DELETE`<br>`/profile/children/{id}` | [`ChildProfileController.java:75-93`](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/profile/child/ChildProfileController.java)<br>[`ChildProfileServiceImpl.java:81-123`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/profile/child/ChildProfileServiceImpl.java) | `childProfileRepository.findById(childId)`<br>`childProfileRepository.delete(child)` | **【解法 1】BaseRepository** | `getInternalChildProfile` 共用查閱點受 Filter 保護，杜絕外人窺探或刪除小孩資料。 |
-| `GET/PUT/DELETE`<br>`/profile/children/{id}/education-settings` | [`ChildEducationSettingsController.java`](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/profile/child/education/ChildEducationSettingsController.java)<br>[`ChildEducationSettingsServiceImpl.java:63,78,194`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/profile/child/education/ChildEducationSettingsServiceImpl.java) | `childProfileRepository.findById(childProfileId)` | **【解法 1】BaseRepository** | 檢查關聯小孩主體時改走 JPQL，他人小孩直接 404，無法偷看或改寫教育費推算。 |
-| `PATCH /assets/nisa/{id}/return-rate` | [`NisaSnapshotRecordController.java:110`](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/accounting/nisa/NisaSnapshotRecordController.java)<br>[`NisaSnapshotRecordServiceImpl.java:56`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/accounting/nisa/NisaSnapshotRecordServiceImpl.java) | `nisaRepository.findById(id)` | **【解法 1】BaseRepository** | 修改 NISA 預期報酬率時套用 Filter，杜絕竄改他人資產標的設定。 |
-| `PATCH /assets/nisa-contributions/{id}/allocation` | [`NisaContributionSettingController.java:81`](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/accounting/nisa/NisaContributionSettingController.java)<br>[`NisaContributionSettingServiceImpl.java:56`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/accounting/nisa/NisaContributionSettingServiceImpl.java) | `settingRepository.findById(id)` | **【解法 1】BaseRepository** | 修改 NISA 定期定額提繳金額與分配時套用 Filter，杜絕竄改他人積立配置。 |
-| `DELETE /assets/dc/{id}`<br>`PATCH /assets/dc/funds/{id}/allocation` | [`DefinedContributionController.java:174`](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/accounting/dc/DefinedContributionController.java)<br>[`DefinedContributionServiceImpl.java:114,135`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/accounting/dc/DefinedContributionServiceImpl.java) | `dcFundRepository.findById(fundId)`<br>`dcRepository.existsById(id)`<br>`dcRepository.deleteById(id)` | **【解法 1】BaseRepository** | `existsById` 走 COUNT JPQL 查他人直接為 0 回傳 404；`deleteById` 與 `findById` 均受 Filter 約束，杜絕 IDOR 刪除與改寫。 |
-| `DELETE /events/career/{id}` | [`CareerEventController.java:79`](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/event/CareerEventController.java)<br>[`CareerEventServiceImpl.java:81`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/event/CareerEventServiceImpl.java) | `careerEventRepository.deleteById(id)` | **【解法 1】BaseRepository** | 職涯異動事件刪除操作改走 JPQL，杜絕跨用戶惡意刪除。 |
-| `DELETE /events/life/{id}` | [`LifeEventController.java:80`](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/event/LifeEventController.java)<br>[`LifeEventServiceImpl.java:70`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/event/LifeEventServiceImpl.java) | `lifeEventRepository.deleteById(id)` | **【解法 1】BaseRepository** | 人生事件刪除操作改走 JPQL，杜絕跨用戶惡意刪除。 |
+| `PUT /mortgages/{id}`<br>`DELETE /mortgages/{id}` | [`MortgageRecordController.java:62-74`](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/accounting/mortgage/MortgageRecordController.java)<br>[`MortgageRecordServiceImpl.java:165,209`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/accounting/mortgage/MortgageRecordServiceImpl.java) | `repository.findById(id)`<br>`repository.deleteById(id)` | **【解法 1】BaseRepository** | 查詢與刪除皆改走 JPQL 套用 Filter：個人模式下查他人房貸回傳 404；刪除操作受 Filter 約束，杜絕 IDOR 惡意刪除。 |
+| `GET/PUT/DELETE`<br>`/insurance-policies/{id}` | [`InsurancePolicyController.java:52-78`](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/accounting/insurance/InsurancePolicyController.java)<br>[`InsurancePolicyServiceImpl.java:48-86`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/accounting/insurance/InsurancePolicyServiceImpl.java) | `repository.findById(id)`<br>`repository.deleteById(id)` | **【解法 1】BaseRepository** | `GET` 讀取依 Scope 允許本人或家族共享保單；`PUT` 更新與 `DELETE` 刪除強制鎖定 `personalFilter`，非本人直接回傳 404 / 不生效。 |
+| `DELETE /assets/pensions/{id}` | [`PensionRecordController.java:111`](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/accounting/pension/PensionRecordController.java)<br>[`PensionRecordServiceImpl.java:67,110`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/accounting/pension/PensionRecordServiceImpl.java) | `pensionRecordRepository.findById(id)`<br>`pensionRecordRepository.deleteById(id)` | **【解法 1】BaseRepository** | 年金紀錄單筆查閱與刪除自動套用 Filter（`DELETE` 鎖定本人），跨戶惡意操作不生效；另 `POST /assets/pensions`（`createOrUpdateRecord`）帶 `id` 更新時須先經 `findById(id)` 查詢再更新，避免直接 `save()` 走 `merge()` 繞過 Filter。 |
+| `GET/PUT/DELETE`<br>`/transaction-categories/{id}` | [`CategoryController.java:68-112`](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/accounting/category/CategoryController.java)<br>[`CategoryServiceImpl.java:58,92,118-121`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/accounting/category/CategoryServiceImpl.java) | `categoryRepository.findById(id)`<br>`categoryRepository.findById(parentId)`<br>`categoryRepository.deleteById(id)` | **【解法 1】BaseRepository** | 分類本體與綁定父分類時皆會過濾，防止將他人分類設為父分類或刪除他人分類。 |
+| `PUT /salaries/{id}` | [`SalaryRecordController.java:94`](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/accounting/salary/SalaryRecordController.java)<br>[`SalaryRecordServiceImpl.java:71-74`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/accounting/salary/SalaryRecordServiceImpl.java) | `salaryRecordRepository.findById(id)` | **【解法 1】BaseRepository** | 修改薪資明細時改走 JPQL，杜絕竄改他人薪資單。 |
+| `PATCH/DELETE`<br>`/profile/children/{id}` | [`ChildProfileController.java:64-83`](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/profile/child/ChildProfileController.java)<br>[`ChildProfileServiceImpl.java:70-117`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/profile/child/ChildProfileServiceImpl.java) | `childProfileRepository.findById(childId)`<br>`childProfileRepository.delete(child)` | **【解法 1】BaseRepository** | `getInternalChildProfile` 共用查閱點受 Filter 保護，杜絕外人窺探或刪除小孩資料。 |
+| `GET/PUT/DELETE`<br>`/profile/children/{id}/education-settings` | [`ChildEducationSettingsController.java`](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/profile/child/education/ChildEducationSettingsController.java)<br>[`ChildEducationSettingsServiceImpl.java:52,67,183`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/profile/child/education/ChildEducationSettingsServiceImpl.java) | `childProfileRepository.findById(childProfileId)` | **【解法 1】BaseRepository** | 檢查關聯小孩主體時改走 JPQL，他人小孩直接 404，無法偷看或改寫教育費推算。 |
+| `PATCH /assets/nisa/{id}/return-rate` | [`NisaSnapshotRecordController.java:99`](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/accounting/nisa/NisaSnapshotRecordController.java)<br>[`NisaSnapshotRecordServiceImpl.java:45`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/accounting/nisa/NisaSnapshotRecordServiceImpl.java) | `nisaRepository.findById(id)` | **【解法 1】BaseRepository** | 修改 NISA 預期報酬率時套用 Filter，杜絕竄改他人資產標的設定。 |
+| `DELETE /assets/dc/{id}`<br>`PATCH /assets/dc/funds/{id}/allocation`<br>`PATCH /assets/dc/accounts/{accountId}/allocations` | [`DefinedContributionController.java:165-202`](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/accounting/dc/DefinedContributionController.java)<br>[`DefinedContributionServiceImpl.java:111,130,168-171`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/accounting/dc/DefinedContributionServiceImpl.java) | `dcFundRepository.findById(fundId)`<br>`dcRepository.findById(accountId)`<br>`dcRepository.existsById(id)`<br>`dcRepository.deleteById(id)` | **【解法 1】BaseRepository** | `existsById` 走 COUNT JPQL 查他人直接為 0 回傳 404；`deleteById` 與 `findById` 均受 Filter 約束，杜絕 IDOR 刪除與改寫。 |
+| `DELETE /events/career/{id}` | [`CareerEventController.java:68`](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/event/CareerEventController.java)<br>[`CareerEventServiceImpl.java:72`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/event/CareerEventServiceImpl.java) | `careerEventRepository.deleteById(id)` | **【解法 1】BaseRepository** | 職涯異動事件刪除操作改走 JPQL，杜絕跨用戶惡意刪除。 |
+| `DELETE /events/life/{id}` | [`LifeEventController.java:69`](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/event/LifeEventController.java)<br>[`LifeEventServiceImpl.java:61`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/event/LifeEventServiceImpl.java) | `lifeEventRepository.deleteById(id)` | **【解法 1】BaseRepository** | 人生事件刪除操作改走 JPQL，杜絕跨用戶惡意刪除。 |
 
 #### 表二：第二種症狀（模擬引擎資料污染 $\rightarrow$ 由【解法 2】與【個人設定解法】防衛）
 
@@ -272,27 +252,27 @@ public class MultiUserJpaRepositoryImpl<T, ID> extends SimpleJpaRepository<T, ID
 
 | 查詢對象與呼叫點 | 相關檔案與位置 | 原始脆弱呼叫 | 負責防衛的解法 | 防衛生效原理與效果 |
 |---|---|---|---|---|
-| **薪資設定**（個人設定） | [`SalaryContextBuilder.java:69`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/SalaryContextBuilder.java) | `salaryUserSettingsRepository.findFirstBy()` | **個人設定解法**：<br>`findByOwnerUserId(currentUserId)` | SQL 明確鎖定 `owner_user_id = 本人`，Family 模式下 100% 杜絕抓到配偶設定並互相覆寫。 |
-| **NISA 設定**（個人設定） | [`NisaContextBuilder.java:54`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/NisaContextBuilder.java) | `nisaUserSettingsRepository.findFirstBy()` | **個人設定解法**：<br>`findByOwnerUserId(currentUserId)` | SQL 明確鎖定本人，家族模式下保證讀取本人專屬的 NISA 投資設定。 |
-| **DC/iDeCo 設定**（個人設定） | [`DefinedContributionContextBuilder.java:49`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/DefinedContributionContextBuilder.java) | `dcUserSettingsRepository.findFirstBy()` | **個人設定解法**：<br>`findByOwnerUserId(currentUserId)` | SQL 明確鎖定本人，家族模式下保證讀取本人專屬的 DC/iDeCo 參數。 |
-| **小孩資料** | [`SimulationContextFactory.java:158`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/SimulationContextFactory.java) | `childProfileRepository.findAll()` | **【解法 2】模擬個人邊界** | 模擬入口強制鎖定 `personalFilter`，只抓本人名下小孩資料，避免教育費推算重複計算。 |
-| **股票帳戶快照** | [`SimulationContextFactory.java:183`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/SimulationContextFactory.java) | `etradeRepository.findFirstByOrderByRecordDateDesc()` | **【解法 2】模擬個人邊界** | 模擬入口強制鎖定 `personalFilter`，只在本人資料中抓最新快照，配偶股票帳戶絕不混入。 |
-| **銀行現金餘額** | [`SimulationContextFactory.java:190`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/SimulationContextFactory.java) | `bankTransactionRepository.findDistinctBankNames()`<br>`findFirstByBankNameOrderBy...()` | **【解法 2】模擬個人邊界** | 模擬入口強制鎖定 `personalFilter`，銀行帳戶與餘額只統計本人，杜絕現金流計算失真。 |
-| **房貸紀錄** | [`SimulationContextFactory.java:200`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/SimulationContextFactory.java)<br>[`AssetSimulationEngineImpl.java:83`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/AssetSimulationEngineImpl.java) | `mortgageRecordRepository.findAll()` | **【解法 2】模擬個人邊界** | 模擬入口強制鎖定 `personalFilter`，日本房貸控除按本人名下計算，配偶名下房貸絕不重複抵扣。 |
-| **職涯事件** | [`AssetSimulationEngineImpl.java:81`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/AssetSimulationEngineImpl.java) | `careerEventRepository.findAllByOrderByEventYearMonthAsc()` | **【解法 2】模擬個人邊界** | 模擬入口強制鎖定 `personalFilter`，使用者自己規劃的轉職/加薪情境絕不被配偶的職涯事件覆蓋或疊加。 |
-| **人生事件** | [`AssetSimulationEngineImpl.java:82`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/AssetSimulationEngineImpl.java) | `lifeEventRepository.findAllByOrderByStartYearMonthAsc()` | **【解法 2】模擬個人邊界** | 模擬入口強制鎖定 `personalFilter`，使用者自己規劃的一次性/定期支出事件絕不被配偶的人生事件混入。 |
-| **保單資料** | [`SimulationContextFactory.java:203`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/SimulationContextFactory.java) | `insurancePolicyRepository.findAll()` | **【解法 2】模擬個人邊界** | 模擬入口強制鎖定 `personalFilter`，保費支出與人壽保障只包含本人保單。 |
-| **薪資與獎金紀錄** | [`SalaryContextBuilder.java:85`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/SalaryContextBuilder.java) | `salaryRecordRepository.findAllByOrderByPaymentDateDesc()` | **【解法 2】模擬個人邊界** | 模擬入口強制鎖定 `personalFilter`，個人薪資所得與獎金預估不受配偶薪資污染。 |
-| **NISA 快照與配置** | [`NisaContextBuilder.java:52,57,111`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/NisaContextBuilder.java) | `nisaRepository.findFirstByOrderByRecordDateDesc()` 等 | **【解法 2】模擬個人邊界** | 模擬入口強制鎖定 `personalFilter`，NISA 每年 360 萬與終身 1800 萬額度嚴格按本人資產試算。 |
-| **DC/iDeCo 快照** | [`DefinedContributionContextBuilder.java:48,122`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/DefinedContributionContextBuilder.java) | `dcRepository.findFirstByTypeOrderByRecordDateDesc(...)` 等 | **【解法 2】模擬個人邊界** | 模擬入口強制鎖定 `personalFilter`，iDeCo 專屬所得扣除額嚴格依本人提繳金額試算。 |
-| **年金公費紀錄** | [`PensionContextBuilder.java:48`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/PensionContextBuilder.java) | `pensionRecordRepository.findAll(Sort.by(...))` | **【解法 2】模擬個人邊界** | 模擬入口強制鎖定 `personalFilter`，未來老齡年金公費給付只抓本人繳納月數與基數。 |
-| **HTTP View Scope Header** | [`OwnerFilterInterceptor.java:79-92`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/config/OwnerFilterInterceptor.java) | `X-View-Scope: FAMILY` | **【解法 2】與 View Scope 脫鉤** | 模擬 API 執行時在 ContextFactory 入口強制鎖定 Personal Scope，不受前端任何 View Scope Header 影響。 |
+| **薪資設定**（個人設定） | [`SalaryContextBuilder.java:58`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/SalaryContextBuilder.java) | `salaryUserSettingsRepository.findFirstBy()` | **個人設定解法**：<br>`findByOwnerUserId(currentUserId)` | SQL 明確鎖定 `owner_user_id = 本人`，Family 模式下 100% 杜絕抓到配偶設定並互相覆寫。 |
+| **NISA 設定**（個人設定） | [`NisaContextBuilder.java:44`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/NisaContextBuilder.java) | `nisaUserSettingsRepository.findFirstBy()` | **個人設定解法**：<br>`findByOwnerUserId(currentUserId)` | SQL 明確鎖定本人，家族模式下保證讀取本人專屬的 NISA 投資設定。 |
+| **DC/iDeCo 設定**（個人設定） | [`DefinedContributionContextBuilder.java:38`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/DefinedContributionContextBuilder.java) | `dcUserSettingsRepository.findFirstBy()` | **個人設定解法**：<br>`findByOwnerUserId(currentUserId)` | SQL 明確鎖定本人，家族模式下保證讀取本人專屬的 DC/iDeCo 參數。 |
+| **小孩資料** | [`SimulationContextFactory.java:111`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/SimulationContextFactory.java) | `childProfileRepository.findAll()` | **【解法 2】模擬個人邊界** | 顯式以 `ownerUserId` 查詢鎖定本人，只抓本人名下小孩資料，避免教育費推算重複計算。 |
+| **股票帳戶快照** | [`SimulationContextFactory.java:136`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/SimulationContextFactory.java) | `etradeRepository.findFirstByOrderByRecordDateDesc()` | **【解法 2】模擬個人邊界** | 顯式以 `ownerUserId` 查詢鎖定本人，只在本人資料中抓最新快照，配偶股票帳戶絕不混入。 |
+| **銀行現金餘額** | [`SimulationContextFactory.java:143`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/SimulationContextFactory.java) | `bankTransactionRepository.findDistinctBankNames()`<br>`findFirstByBankNameOrderBy...()` | **【解法 2】模擬個人邊界** | 顯式以 `ownerUserId` 查詢鎖定本人，銀行帳戶與餘額只統計本人，杜絕現金流計算失真。 |
+| **房貸紀錄** | [`SimulationContextFactory.java:153`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/SimulationContextFactory.java)<br>[`AssetSimulationEngineImpl.java:72`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/AssetSimulationEngineImpl.java) | `mortgageRecordRepository.findAll()` | **【解法 2】模擬個人邊界** | 顯式以 `ownerUserId` 查詢鎖定本人，日本房貸控除按本人名下計算，配偶名下房貸絕不重複抵扣。 |
+| **職涯事件** | [`AssetSimulationEngineImpl.java:70`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/AssetSimulationEngineImpl.java) | `careerEventRepository.findAllByOrderByEventYearMonthAsc()` | **【解法 2】模擬個人邊界** | 顯式以 `ownerUserId` 查詢鎖定本人，使用者自己規劃的轉職/加薪情境絕不被配偶的職涯事件覆蓋或疊加。 |
+| **人生事件** | [`AssetSimulationEngineImpl.java:71`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/AssetSimulationEngineImpl.java) | `lifeEventRepository.findAllByOrderByStartYearMonthAsc()` | **【解法 2】模擬個人邊界** | 顯式以 `ownerUserId` 查詢鎖定本人，使用者自己規劃的一次性/定期支出事件絕不被配偶的人生事件混入。 |
+| **保單資料** | [`SimulationContextFactory.java:156`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/SimulationContextFactory.java) | `insurancePolicyRepository.findAll()` | **【解法 2】模擬個人邊界** | 顯式以 `ownerUserId` 查詢鎖定本人，保費支出與人壽保障只包含本人保單。 |
+| **薪資與獎金紀錄** | [`SalaryContextBuilder.java:74`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/SalaryContextBuilder.java) | `salaryRecordRepository.findAllByOrderByPaymentDateDesc()` | **【解法 2】模擬個人邊界** | 顯式以 `ownerUserId` 查詢鎖定本人，個人薪資所得與獎金預估不受配偶薪資污染。 |
+| **NISA 快照與配置** | [`NisaContextBuilder.java:42,47,101`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/NisaContextBuilder.java) | `nisaRepository.findFirstByOrderByRecordDateDesc()` 等 | **【解法 2】模擬個人邊界** | 顯式以 `ownerUserId` 查詢鎖定本人，NISA 每年 360 萬與終身 1800 萬額度嚴格按本人資產試算。 |
+| **DC/iDeCo 快照** | [`DefinedContributionContextBuilder.java:37,109`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/DefinedContributionContextBuilder.java) | `dcRepository.findFirstByTypeOrderByRecordDateDesc(...)` 等 | **【解法 2】模擬個人邊界** | 顯式以 `ownerUserId` 查詢鎖定本人，iDeCo 專屬所得扣除額嚴格依本人提繳金額試算。 |
+| **年金公費紀錄** | [`PensionContextBuilder.java:36-37`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/simulation/core/factory/PensionContextBuilder.java) | `pensionRecordRepository.findAll(Sort.by(...))` | **【解法 2】模擬個人邊界** | 顯式以 `ownerUserId` 查詢鎖定本人，未來老齡年金公費給付只抓本人繳納月數與基數。 |
+| **HTTP View Scope Header** | [`OwnerFilterInterceptor.java:68-81`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/config/OwnerFilterInterceptor.java) | `X-View-Scope: FAMILY` | **【解法 2】與 View Scope 脫鉤** | 模擬與試算查詢顯式綁定 `ownerUserId`，不受前端任何 View Scope Header 影響。 |
 
 ---
 
 ### 8. 解法 1 的完整落地步驟：Repository Base Class 接線設定
 
-`MultiUserJpaRepositoryImpl`這個類別寫出來之後，還需要讓Spring Data JPA實際知道要用它取代預設的`SimpleJpaRepository`，解法1才會真正生效。目前[`FinanceHubApplication.java:45`](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/FinanceHubApplication.java)的設定是：
+`MultiUserJpaRepositoryImpl`這個類別寫出來之後，還需要讓Spring Data JPA實際知道要用它取代預設的`SimpleJpaRepository`，解法1才會真正生效。目前[`FinanceHubApplication.java:34`](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/FinanceHubApplication.java)的設定是：
 
 ```java
 @EnableJpaRepositories(basePackages = "ch.lin.finance.hub.backend")
@@ -311,26 +291,17 @@ public class MultiUserJpaRepositoryImpl<T, ID> extends SimpleJpaRepository<T, ID
 
 ### 9. 解法 1 的簡化：`deleteById`不需要另外覆寫
 
-反編譯專案實際鎖定的`spring-data-jpa-3.5.7.jar`可以確認，`SimpleJpaRepository`預設的`deleteById()`內部實作本來就是呼叫`this.findById(id)`取得實體後再刪除（Java的虛擬方法分派會自動呼叫到子類別覆寫後的版本）。這代表只要覆寫`findById()`，`deleteById()`會自動跟著套用同一套JPQL/Filter邏輯，不需要像前面範例那樣再手刻一次幾乎相同的JPQL查詢——`MultiUserJpaRepositoryImpl`可以只覆寫`findById()`一個方法，實作更精簡，也更不容易在兩處各自維護類似邏輯時出現落差。（找不到資料時該拋出什麼例外、對應到什麼HTTP狀態碼，可以留到實際實作時再透過global exception handler統一規劃。）
+反編譯專案實際鎖定的`spring-data-jpa-3.5.7.jar`可以確認，`SimpleJpaRepository`預設的`deleteById()`內部實作本來就是呼叫`this.findById(id)`取得實體後再刪除（Java的虛擬方法分派會自動呼叫到子類別覆寫後的版本）。這代表只要覆寫`findById()`，`deleteById()`會自動跟著套用同一套JPQL/Filter邏輯，不需要像前面範例那樣再手刻一次幾乎相同的JPQL查詢——`MultiUserJpaRepositoryImpl`可以只覆寫`findById()`一個方法，實作更精簡，也更不容易在兩處各自維護類似邏輯時出現落差。配合第2點「非`GET`請求強制鎖定`personalFilter`」，呼叫`deleteById()`時`this.findById(id)`只會命中本人資料，查無權限或不存在時`SimpleJpaRepository`預設以`findById(id).ifPresent(this::delete)`安全略過，絕不會誤刪他人或家人資料。（若個別端點需要明確回傳404，如`DefinedContributionServiceImpl`先呼叫`existsById(id)`即可。）
 
 ---
 
 ### 10. 解法 3：讓手動觸發的背景 Job 也套用個人範圍保護
 
-前面第5點評估背景Job時，排程觸發（Scheduler）因為即將整批棄用、且本來就沒有HTTP上下文可用，可以維持不處理。但手動觸發（HTTP進來後丟給背景執行緒執行，例如[`ImportTaskController.java:68`](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/job/ImportTaskController.java)的`POST /import/tasks`、[`TransactionSourceTaskController.java:92`](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/job/TransactionSourceTaskController.java)的`POST /tasks/{transactionSource}/process`）目前會繼續保留使用（唯一使用者兼測試身分需要用它確認匯入流程正確，之後家族Link功能上線後也需要用它驗證資料隔離是否正常），值得單獨規劃一套對應的保護。
+前面第5點評估背景Job時，排程觸發（Scheduler）因為即將整批棄用、且本來就沒有HTTP上下文可用，可以維持不處理。但手動觸發（HTTP進來後丟給背景執行緒執行，例如[`ImportTaskController.java:56`](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/job/ImportTaskController.java)的`POST /import/tasks`、[`TransactionSourceTaskController.java:80`](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/job/TransactionSourceTaskController.java)的`POST /tasks/{transactionSource}/process`）目前會繼續保留使用（唯一使用者兼測試身分需要用它確認匯入流程正確，之後家族Link功能上線後也需要用它驗證資料隔離是否正常），值得單獨規劃一套對應的保護。
 
 **現狀**：這兩個端點本身都有`userId`（JWT帶進來的），但實際執行匯入邏輯時用`CompletableFuture.runAsync(...)`丟到新的背景執行緒，而`OwnerFilterInterceptor`enable的Hibernate Filter是掛在原本那條HTTP執行緒的Session上，不會跟著傳到新執行緒。兩個Controller目前都已經在背景執行緒裡重建了`SecurityContext`（`ImportTaskController`手動建立、`TransactionSourceTaskController`用`DelegatingSecurityContextRunnable`），這部分負責的是「背景執行緒知道userId是誰」，但還沒有連帶讓Filter在新執行緒的Session上enable。
 
-**建議做法**：在同一個背景執行緒邏輯裡，用請求當下已經知道的`userId`，補一次跟`OwnerFilterInterceptor.preHandle()`一樣的動作：
-
-```java
-Session session = entityManager.unwrap(Session.class);
-session.enableFilter("personalFilter").setParameter("userId", userId);
-```
-
-兩個Controller都已經有重建`SecurityContext`的邏輯，可以在同一個地方順便補上這段Filter設定，讓背景執行緒內的查詢（`findById`、`findAll`等）享有跟一般HTTP請求同等的保護，不用再額外設計新的機制。
-
-查過目前Job邏輯裡實際的查詢呼叫，唯一一處`findById`（[`InsuranceJobServiceImpl.java:130`](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/accounting/insurance/InsuranceJobServiceImpl.java)：`userProfileRepository.findById(ownerUserId)`）用的是`userId`本身當主鍵查詢，不是資料庫自增ID，現在沒有被濫用的風險，所以這一步補強並不急迫；但補上之後可以讓解法1、解法2的保護範圍完整覆蓋手動觸發Job這條路徑，之後驗證家族資料隔離時會更可靠。
+**建議做法**：配合第 2 點「在 `@Transactional` 開啟 Session 時自動掛載 Filter」的機制，只要背景執行緒的 `SecurityContext` 內已有 `userId`（並讓取用 `userId` 的工具相容 `ImportTaskController` 建立的 `UsernamePasswordAuthenticationToken`），當 Job 內部的 `@Transactional` 方法開啟新 Session 時，未帶 HTTP `FAMILY` Scope 就會自動套用 `personalFilter`（`owner_user_id = :userId`），避免在非交易的 `CompletableFuture.runAsync` 區塊直接呼叫 `entityManager.unwrap(Session.class)` 導致無可用交易 Session 的錯誤，讓背景執行緒內的查詢享有跟一般 HTTP 請求同等的個人範圍保護。
 
 ---
 
@@ -340,15 +311,15 @@ session.enableFilter("personalFilter").setParameter("userId", userId);
 審查支出/分類/股票服務層時，在核對表一列出的IDOR端點清單是否完整時發現的——這不是表一漏列的同類項目，是一種結構上更嚴重的變體，獨立記錄在這裡。
 
 ### 相關檔案
-- [ExpenseServiceImpl.java:104-137](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/accounting/expense/ExpenseServiceImpl.java)（`getExpenseDetail`，118-134行針對AMAZON/RAKUTEN/SOFMAP三種來源，各自呼叫`entityManager.find(XxxItem.class, id)`，整個方法找不到一處比對`ownerUserId`或家族關係）
-- [ExpenseController.java:101-117](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/accounting/expense/ExpenseController.java)（`getExpenseDetails`，直接把URL path variable`{id}`拆成`source`跟`stringId`餵給上面的方法，`stringId`就是資料庫自增ID）
-- [BaseOrderItem.java:46](file://finance-hub/finance-hub-backend/hub-domain/src/main/java/ch/lin/finance/hub/backend/api/domain/model/accounting/shopping/BaseOrderItem.java)（`AmazonItem`/`RakutenItem`/`SofmapItem`繼承的是`PrivacyOverrideBaseEntity`，不是`MultiUserBaseEntity`）
-- [PrivacyOverrideBaseEntity.java:41-49](file://finance-hub/finance-hub-backend/hub-domain/src/main/java/ch/lin/finance/hub/backend/api/domain/model/base/PrivacyOverrideBaseEntity.java)（這個基底類別只有`privacyLevel`欄位，完全沒有`ownerUserId`欄位，也沒有宣告任何Hibernate `@Filter`——訂單項目本身在資料模型層級就沒有被設計成可以用擁有者去過濾，保護完全依賴訂單本身）
-- [PrivacyMaskingUtil.java:60-74](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/util/PrivacyMaskingUtil.java)（`shouldMask`：只比對「目前使用者是不是擁有者」跟「隱私層級是不是SHARED」，完全沒有檢查目前使用者跟訂單擁有者是否屬於同一個家族——這個方法的設計前提是「能查到這筆資料的人，一定已經先被Hibernate Filter篩過一輪了」）
-- [MultiUserBaseEntity.java:87-90](file://finance-hub/finance-hub-backend/hub-domain/src/main/java/ch/lin/finance/hub/backend/api/domain/model/base/MultiUserBaseEntity.java)（`privacyLevel`預設值是`SHARED`——這代表系統裡幾乎所有訂單，只要使用者沒有手動改過隱私設定，預設都是`SHARED`）
+- [ExpenseServiceImpl.java:93-126](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/service/accounting/expense/ExpenseServiceImpl.java)（`getExpenseDetail`，107-123行針對AMAZON/RAKUTEN/SOFMAP三種來源，各自呼叫`entityManager.find(XxxItem.class, id)`，整個方法找不到一處比對`ownerUserId`或家族關係）
+- [ExpenseController.java:90-106](file://finance-hub/finance-hub-backend/hub/src/main/java/ch/lin/finance/hub/backend/api/controller/accounting/expense/ExpenseController.java)（`getExpenseDetails`，直接把URL path variable`{id}`拆成`source`跟`stringId`餵給上面的方法，`stringId`就是資料庫自增ID）
+- [BaseOrderItem.java:35](file://finance-hub/finance-hub-backend/hub-domain/src/main/java/ch/lin/finance/hub/backend/api/domain/model/accounting/shopping/BaseOrderItem.java)（`AmazonItem`/`RakutenItem`/`SofmapItem`繼承的是`PrivacyOverrideBaseEntity`，不是`MultiUserBaseEntity`）
+- [PrivacyOverrideBaseEntity.java:30-38](file://finance-hub/finance-hub-backend/hub-domain/src/main/java/ch/lin/finance/hub/backend/api/domain/model/base/PrivacyOverrideBaseEntity.java)（這個基底類別只有`privacyLevel`欄位，完全沒有`ownerUserId`欄位，也沒有宣告任何Hibernate `@Filter`——訂單項目本身在資料模型層級就沒有被設計成可以用擁有者去過濾，保護完全依賴訂單本身）
+- [PrivacyMaskingUtil.java:59-68](file://finance-hub/finance-hub-backend/hub-app/src/main/java/ch/lin/finance/hub/backend/api/app/util/PrivacyMaskingUtil.java)（`shouldMask`：只比對「目前使用者是不是擁有者」跟「隱私層級是不是SHARED」，完全沒有檢查目前使用者跟訂單擁有者是否屬於同一個家族——這個方法的設計前提是「能查到這筆資料的人，一定已經先被Hibernate Filter篩過一輪了」）
+- [MultiUserBaseEntity.java:76-79](file://finance-hub/finance-hub-backend/hub-domain/src/main/java/ch/lin/finance/hub/backend/api/domain/model/base/MultiUserBaseEntity.java)（`privacyLevel`預設值是`SHARED`——這代表系統裡幾乎所有訂單，只要使用者沒有手動改過隱私設定，預設都是`SHARED`）
 
 ### 現狀
-`getExpenseDetail(source, stringId)`把`stringId`轉成`Long id`後，直接呼叫`entityManager.find(AmazonItem.class, id)`（Rakuten/Sofmap同理）。這是JPA的「依主鍵直接抓取」路徑，跟表一列出的`findById()`端點一樣會完全跳過Hibernate Filter——但情況比表一那些端點更徹底：`AmazonItem`這個實體類別本身繼承的是`PrivacyOverrideBaseEntity`，不是`MultiUserBaseEntity`，從頭到尾沒有`ownerUserId`欄位、也沒有宣告任何`@Filter`。也就是說，就算第107-144行提出的「解法1」（改走JPQL讓Filter生效）真的落地，這裡也不會被救到，因為訂單項目這個實體本來就沒有被賦予可以過濾的欄位——它的擁有者資訊只存在於它所屬的`AmazonOrder`（透過`item.getOrder().getOwnerUserId()`才拿得到）。
+`getExpenseDetail(source, stringId)`把`stringId`轉成`Long id`後，直接呼叫`entityManager.find(AmazonItem.class, id)`（Rakuten/Sofmap同理）。這是JPA的「依主鍵直接抓取」路徑，跟表一列出的`findById()`端點一樣會完全跳過Hibernate Filter——但情況比表一那些端點更徹底：`AmazonItem`這個實體類別本身繼承的是`PrivacyOverrideBaseEntity`，不是`MultiUserBaseEntity`，從頭到尾沒有`ownerUserId`欄位、也沒有宣告任何`@Filter`。也就是說，就算第108-146行提出的「解法1」（改走JPQL讓Filter生效）真的落地，這裡也不會被救到，因為訂單項目這個實體本來就沒有被賦予可以過濾的欄位——它的擁有者資訊只存在於它所屬的`AmazonOrder`（透過`item.getOrder().getOwnerUserId()`才拿得到）。
 
 拿到實體之後，`ExpenseDetailResult.fromAmazonItem()`會把`item.getOrder().getOwnerUserId()`、`item.getOrder().getPrivacyLevel()`填進回傳物件，最後交給`ExpenseMapper.applyExpenseDetailMasking`判斷要不要遮罩。但`PrivacyMaskingUtil.shouldMask`的邏輯是：只要不是本人，且隱私層級不是`SHARED`才遮罩——隱私層級剛好是`MultiUserBaseEntity`的預設值，而Plan-19記錄的技術債是「所有領域目前都還沒開放`privacyLevel`欄位讓前端寫入」，代表系統裡幾乎所有訂單目前都停留在預設的`SHARED`。
 
