@@ -66,13 +66,13 @@ class NisaContextBuilderTest {
                 today, "NISA (つみたて)預り", "0331418A", "eMAXIS Slim All Country",
                 "毎週", 10_000L);
 
-        when(nisaRepository.findFirstByOrderByRecordDateDesc()).thenReturn(Optional.of(record));
-        when(nisaRepository.findByRecordDate(today)).thenReturn(List.of(record));
-        when(nisaSettingRepository.findAllByOrderByRecordDateDesc()).thenReturn(List.of(setting));
-        when(nisaUserSettingsRepository.findFirstBy()).thenReturn(Optional.empty());
+        when(nisaRepository.findFirstByOwnerUserIdOrderByRecordDateDesc("user-1")).thenReturn(Optional.of(record));
+        when(nisaRepository.findByOwnerUserIdAndRecordDate("user-1", today)).thenReturn(List.of(record));
+        when(nisaSettingRepository.findAllByOwnerUserIdOrderByRecordDateDesc("user-1")).thenReturn(List.of(setting));
+        when(nisaUserSettingsRepository.findByOwnerUserId("user-1")).thenReturn(Optional.empty());
 
         SimulationContext context = new SimulationContext();
-        nisaContextBuilder.initializeNisaContext(context, config);
+        nisaContextBuilder.initializeNisaContext(context, config, "user-1");
 
         assertThat(context.getNisaFunds()).hasSize(1);
         SimulationFund fund = context.getNisaFunds().get(0);
@@ -94,13 +94,13 @@ class NisaContextBuilderTest {
                 today, "NISA (成長)預り", "03311187", "TOPIX Fund",
                 "毎日", 1_000L);
 
-        when(nisaRepository.findFirstByOrderByRecordDateDesc()).thenReturn(Optional.of(record));
-        when(nisaRepository.findByRecordDate(today)).thenReturn(List.of(record));
-        when(nisaSettingRepository.findAllByOrderByRecordDateDesc()).thenReturn(List.of(setting));
-        when(nisaUserSettingsRepository.findFirstBy()).thenReturn(Optional.empty());
+        when(nisaRepository.findFirstByOwnerUserIdOrderByRecordDateDesc("user-1")).thenReturn(Optional.of(record));
+        when(nisaRepository.findByOwnerUserIdAndRecordDate("user-1", today)).thenReturn(List.of(record));
+        when(nisaSettingRepository.findAllByOwnerUserIdOrderByRecordDateDesc("user-1")).thenReturn(List.of(setting));
+        when(nisaUserSettingsRepository.findByOwnerUserId("user-1")).thenReturn(Optional.empty());
 
         SimulationContext context = new SimulationContext();
-        nisaContextBuilder.initializeNisaContext(context, config);
+        nisaContextBuilder.initializeNisaContext(context, config, "user-1");
 
         assertThat(context.getNisaFunds()).hasSize(1);
         SimulationFund fund = context.getNisaFunds().get(0);
@@ -121,13 +121,13 @@ class NisaContextBuilderTest {
                 today, "NISA (成長)預り", "03311187", "S&P 500 Fund",
                 "毎月", 50_000L);
 
-        when(nisaRepository.findFirstByOrderByRecordDateDesc()).thenReturn(Optional.of(record));
-        when(nisaRepository.findByRecordDate(today)).thenReturn(List.of(record));
-        when(nisaSettingRepository.findAllByOrderByRecordDateDesc()).thenReturn(List.of(setting));
-        when(nisaUserSettingsRepository.findFirstBy()).thenReturn(Optional.empty());
+        when(nisaRepository.findFirstByOwnerUserIdOrderByRecordDateDesc("user-1")).thenReturn(Optional.of(record));
+        when(nisaRepository.findByOwnerUserIdAndRecordDate("user-1", today)).thenReturn(List.of(record));
+        when(nisaSettingRepository.findAllByOwnerUserIdOrderByRecordDateDesc("user-1")).thenReturn(List.of(setting));
+        when(nisaUserSettingsRepository.findByOwnerUserId("user-1")).thenReturn(Optional.empty());
 
         SimulationContext context = new SimulationContext();
-        nisaContextBuilder.initializeNisaContext(context, config);
+        nisaContextBuilder.initializeNisaContext(context, config, "user-1");
 
         assertThat(context.getNisaFunds()).hasSize(1);
         SimulationFund fund = context.getNisaFunds().get(0);
@@ -148,13 +148,13 @@ class NisaContextBuilderTest {
                 today, "NISA (成長)預り", "03311187", "Unknown Fund",
                 "不明", 0L);
 
-        when(nisaRepository.findFirstByOrderByRecordDateDesc()).thenReturn(Optional.of(record));
-        when(nisaRepository.findByRecordDate(today)).thenReturn(List.of(record));
-        when(nisaSettingRepository.findAllByOrderByRecordDateDesc()).thenReturn(List.of(setting));
-        when(nisaUserSettingsRepository.findFirstBy()).thenReturn(Optional.empty());
+        when(nisaRepository.findFirstByOwnerUserIdOrderByRecordDateDesc("user-1")).thenReturn(Optional.of(record));
+        when(nisaRepository.findByOwnerUserIdAndRecordDate("user-1", today)).thenReturn(List.of(record));
+        when(nisaSettingRepository.findAllByOwnerUserIdOrderByRecordDateDesc("user-1")).thenReturn(List.of(setting));
+        when(nisaUserSettingsRepository.findByOwnerUserId("user-1")).thenReturn(Optional.empty());
 
         SimulationContext context = new SimulationContext();
-        nisaContextBuilder.initializeNisaContext(context, config);
+        nisaContextBuilder.initializeNisaContext(context, config, "user-1");
 
         assertThat(context.getNisaFunds()).hasSize(1);
         SimulationFund fund = context.getNisaFunds().get(0);
@@ -174,13 +174,13 @@ class NisaContextBuilderTest {
                 "毎月", 50_000L);
         setting.updateExpectedReturnRate(0.065);
 
-        when(nisaRepository.findFirstByOrderByRecordDateDesc()).thenReturn(Optional.of(record));
-        when(nisaRepository.findByRecordDate(today)).thenReturn(List.of(record));
-        when(nisaSettingRepository.findAllByOrderByRecordDateDesc()).thenReturn(List.of(setting));
-        when(nisaUserSettingsRepository.findFirstBy()).thenReturn(Optional.empty());
+        when(nisaRepository.findFirstByOwnerUserIdOrderByRecordDateDesc("user-1")).thenReturn(Optional.of(record));
+        when(nisaRepository.findByOwnerUserIdAndRecordDate("user-1", today)).thenReturn(List.of(record));
+        when(nisaSettingRepository.findAllByOwnerUserIdOrderByRecordDateDesc("user-1")).thenReturn(List.of(setting));
+        when(nisaUserSettingsRepository.findByOwnerUserId("user-1")).thenReturn(Optional.empty());
 
         SimulationContext context = new SimulationContext();
-        nisaContextBuilder.initializeNisaContext(context, config);
+        nisaContextBuilder.initializeNisaContext(context, config, "user-1");
 
         assertThat(context.getNisaFunds()).hasSize(1);
         SimulationFund fund = context.getNisaFunds().get(0);

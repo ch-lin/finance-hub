@@ -30,6 +30,7 @@ import ch.lin.finance.hub.backend.api.app.service.simulation.core.model.Simulati
 import ch.lin.finance.hub.backend.api.app.service.simulation.core.pipeline.YearlySimulationPipeline;
 import ch.lin.finance.hub.backend.api.app.service.simulation.core.result.AssetSimulationYearlyResult;
 import ch.lin.finance.hub.backend.api.app.service.simulation.core.utils.SimulationParameterResolver;
+import ch.lin.finance.hub.backend.api.app.util.SecurityUtil;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.mortgage.MortgageRecord;
 import ch.lin.finance.hub.backend.api.domain.model.event.CareerEvent;
 import ch.lin.finance.hub.backend.api.domain.model.event.LifeEvent;
@@ -66,10 +67,11 @@ public class AssetSimulationEngineImpl implements AssetSimulationEngine {
     @Override
     @Transactional(readOnly = true)
     public SimulationData fetchSimulationData() {
+        String userId = SecurityUtil.getCurrentUserId();
         SimulationContext baseContext = simulationContextFactory.createContext();
-        List<CareerEvent> careerEvents = careerEventRepository.findAllByOrderByEventYearMonthAsc();
-        List<LifeEvent> lifeEvents = lifeEventRepository.findAllByOrderByStartYearMonthAsc();
-        List<MortgageRecord> allMortgages = mortgageRecordRepository.findAll();
+        List<CareerEvent> careerEvents = careerEventRepository.findAllByOwnerUserIdOrderByEventYearMonthAsc(userId);
+        List<LifeEvent> lifeEvents = lifeEventRepository.findAllByOwnerUserIdOrderByStartYearMonthAsc(userId);
+        List<MortgageRecord> allMortgages = mortgageRecordRepository.findAllByOwnerUserId(userId);
         YearMonth nowMonth = YearMonth.now();
         return new SimulationData(baseContext, careerEvents, lifeEvents, allMortgages, nowMonth);
     }

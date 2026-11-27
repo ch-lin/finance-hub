@@ -22,4 +22,6 @@ import ch.lin.finance.hub.backend.api.domain.model.event.LifeEvent;
 @Repository
 public interface LifeEventRepository extends JpaRepository<LifeEvent, Long> {
     List<LifeEvent> findAllByOrderByStartYearMonthAsc();
+
+    List<LifeEvent> findAllByOwnerUserIdOrderByStartYearMonthAsc(String ownerUserId);
 }

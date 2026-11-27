@@ -54,7 +54,8 @@ class DefinedContributionContextBuilderTest {
     @Test
     @DisplayName("Corporate DC without snapshot and with override should set contribution years directly and keep enrollment date null")
     void corporateDc_NoSnapshot_WithOverride_ShouldSetContributionYearsAndKeepEnrollmentDateNull() {
-        when(dcRepository.findFirstByTypeOrderByRecordDateDesc(DefinedContributionType.CORPORATE_DC))
+        when(dcRepository.findFirstByOwnerUserIdAndTypeOrderByRecordDateDesc("user-1",
+                DefinedContributionType.CORPORATE_DC))
                 .thenReturn(Optional.empty());
 
         DefinedContributionUserSettings settings = new DefinedContributionUserSettings();
@@ -62,10 +63,10 @@ class DefinedContributionContextBuilderTest {
         settings.setIsDcContributionYearsOverridden(true);
         settings.setDcContributionYearsOverride(5);
 
-        when(dcUserSettingsRepository.findFirstBy()).thenReturn(Optional.of(settings));
+        when(dcUserSettingsRepository.findByOwnerUserId("user-1")).thenReturn(Optional.of(settings));
 
         SimulationContext context = new SimulationContext();
-        builder.initializeDefinedContributionContext(context, config);
+        builder.initializeDefinedContributionContext(context, config, "user-1");
 
         assertThat(context.getDcContributionYears()).isEqualTo(5);
         assertThat(context.getDcEnrollmentDate()).isNull();
@@ -76,9 +77,11 @@ class DefinedContributionContextBuilderTest {
     @Test
     @DisplayName("iDeCo without snapshot and with override should set contribution years directly and keep enrollment date null")
     void ideco_NoSnapshot_WithOverride_ShouldSetContributionYearsAndKeepEnrollmentDateNull() {
-        when(dcRepository.findFirstByTypeOrderByRecordDateDesc(DefinedContributionType.CORPORATE_DC))
+        when(dcRepository.findFirstByOwnerUserIdAndTypeOrderByRecordDateDesc("user-1",
+                DefinedContributionType.CORPORATE_DC))
                 .thenReturn(Optional.empty());
-        when(dcRepository.findFirstByTypeOrderByRecordDateDesc(DefinedContributionType.IDECO))
+        when(dcRepository.findFirstByOwnerUserIdAndTypeOrderByRecordDateDesc("user-1",
+                DefinedContributionType.IDECO))
                 .thenReturn(Optional.empty());
 
         DefinedContributionUserSettings settings = new DefinedContributionUserSettings();
@@ -86,10 +89,10 @@ class DefinedContributionContextBuilderTest {
         settings.setIsIdecoContributionYearsOverridden(true);
         settings.setIdecoContributionYearsOverride(4);
 
-        when(dcUserSettingsRepository.findFirstBy()).thenReturn(Optional.of(settings));
+        when(dcUserSettingsRepository.findByOwnerUserId("user-1")).thenReturn(Optional.of(settings));
 
         SimulationContext context = new SimulationContext();
-        builder.initializeDefinedContributionContext(context, config);
+        builder.initializeDefinedContributionContext(context, config, "user-1");
 
         assertThat(context.getIdecoContributionYears()).isEqualTo(4);
         assertThat(context.getIdecoEnrollmentDate()).isNull();
@@ -104,17 +107,18 @@ class DefinedContributionContextBuilderTest {
                 LocalDate.now(), DefinedContributionType.CORPORATE_DC, 1_000_000L, 800_000L, 20_000L, 0L, 20_000L);
         snapshot.setEnrollmentDate(LocalDate.now().minusYears(10));
 
-        when(dcRepository.findFirstByTypeOrderByRecordDateDesc(DefinedContributionType.CORPORATE_DC))
+        when(dcRepository.findFirstByOwnerUserIdAndTypeOrderByRecordDateDesc("user-1",
+                DefinedContributionType.CORPORATE_DC))
                 .thenReturn(Optional.of(snapshot));
 
         DefinedContributionUserSettings settings = new DefinedContributionUserSettings();
         settings.setIsDcContributionYearsOverridden(true);
         settings.setDcContributionYearsOverride(7);
 
-        when(dcUserSettingsRepository.findFirstBy()).thenReturn(Optional.of(settings));
+        when(dcUserSettingsRepository.findByOwnerUserId("user-1")).thenReturn(Optional.of(settings));
 
         SimulationContext context = new SimulationContext();
-        builder.initializeDefinedContributionContext(context, config);
+        builder.initializeDefinedContributionContext(context, config, "user-1");
 
         assertThat(context.getDcContributionYears()).isEqualTo(7);
         assertThat(context.getDcEnrollmentDate()).isNull();
@@ -128,16 +132,17 @@ class DefinedContributionContextBuilderTest {
                 LocalDate.now(), DefinedContributionType.CORPORATE_DC, 1_000_000L, 800_000L, 20_000L, 0L, 20_000L);
         snapshot.setEnrollmentDate(enrollmentDate);
 
-        when(dcRepository.findFirstByTypeOrderByRecordDateDesc(DefinedContributionType.CORPORATE_DC))
+        when(dcRepository.findFirstByOwnerUserIdAndTypeOrderByRecordDateDesc("user-1",
+                DefinedContributionType.CORPORATE_DC))
                 .thenReturn(Optional.of(snapshot));
 
         DefinedContributionUserSettings settings = new DefinedContributionUserSettings();
         settings.setIsDcContributionYearsOverridden(false);
 
-        when(dcUserSettingsRepository.findFirstBy()).thenReturn(Optional.of(settings));
+        when(dcUserSettingsRepository.findByOwnerUserId("user-1")).thenReturn(Optional.of(settings));
 
         SimulationContext context = new SimulationContext();
-        builder.initializeDefinedContributionContext(context, config);
+        builder.initializeDefinedContributionContext(context, config, "user-1");
 
         assertThat(context.getDcEnrollmentDate()).isEqualTo(enrollmentDate);
         assertThat(context.getDcContributionYears()).isGreaterThanOrEqualTo(3);
@@ -146,24 +151,26 @@ class DefinedContributionContextBuilderTest {
     @Test
     @DisplayName("iDeCo with snapshot and with override should prioritize override and keep enrollment date null")
     void ideco_WithSnapshot_WithOverride_ShouldPrioritizeOverrideAndKeepEnrollmentDateNull() {
-        when(dcRepository.findFirstByTypeOrderByRecordDateDesc(DefinedContributionType.CORPORATE_DC))
+        when(dcRepository.findFirstByOwnerUserIdAndTypeOrderByRecordDateDesc("user-1",
+                DefinedContributionType.CORPORATE_DC))
                 .thenReturn(Optional.empty());
 
         DefinedContributionAccountSnapshot snapshot = new DefinedContributionAccountSnapshot(
                 LocalDate.now(), DefinedContributionType.IDECO, 500_000L, 400_000L, 0L, 23_000L, 23_000L);
         snapshot.setEnrollmentDate(LocalDate.now().minusYears(8));
 
-        when(dcRepository.findFirstByTypeOrderByRecordDateDesc(DefinedContributionType.IDECO))
+        when(dcRepository.findFirstByOwnerUserIdAndTypeOrderByRecordDateDesc("user-1",
+                DefinedContributionType.IDECO))
                 .thenReturn(Optional.of(snapshot));
 
         DefinedContributionUserSettings settings = new DefinedContributionUserSettings();
         settings.setIsIdecoContributionYearsOverridden(true);
         settings.setIdecoContributionYearsOverride(6);
 
-        when(dcUserSettingsRepository.findFirstBy()).thenReturn(Optional.of(settings));
+        when(dcUserSettingsRepository.findByOwnerUserId("user-1")).thenReturn(Optional.of(settings));
 
         SimulationContext context = new SimulationContext();
-        builder.initializeDefinedContributionContext(context, config);
+        builder.initializeDefinedContributionContext(context, config, "user-1");
 
         assertThat(context.getIdecoContributionYears()).isEqualTo(6);
         assertThat(context.getIdecoEnrollmentDate()).isNull();
@@ -172,7 +179,8 @@ class DefinedContributionContextBuilderTest {
     @Test
     @DisplayName("iDeCo with snapshot and without override should set enrollment date and calculate years")
     void ideco_WithSnapshot_WithoutOverride_ShouldSetEnrollmentDateAndCalculateYears() {
-        when(dcRepository.findFirstByTypeOrderByRecordDateDesc(DefinedContributionType.CORPORATE_DC))
+        when(dcRepository.findFirstByOwnerUserIdAndTypeOrderByRecordDateDesc("user-1",
+                DefinedContributionType.CORPORATE_DC))
                 .thenReturn(Optional.empty());
 
         LocalDate enrollmentDate = LocalDate.now().minusYears(2);
@@ -180,16 +188,17 @@ class DefinedContributionContextBuilderTest {
                 LocalDate.now(), DefinedContributionType.IDECO, 500_000L, 400_000L, 0L, 23_000L, 23_000L);
         snapshot.setEnrollmentDate(enrollmentDate);
 
-        when(dcRepository.findFirstByTypeOrderByRecordDateDesc(DefinedContributionType.IDECO))
+        when(dcRepository.findFirstByOwnerUserIdAndTypeOrderByRecordDateDesc("user-1",
+                DefinedContributionType.IDECO))
                 .thenReturn(Optional.of(snapshot));
 
         DefinedContributionUserSettings settings = new DefinedContributionUserSettings();
         settings.setIsIdecoContributionYearsOverridden(false);
 
-        when(dcUserSettingsRepository.findFirstBy()).thenReturn(Optional.of(settings));
+        when(dcUserSettingsRepository.findByOwnerUserId("user-1")).thenReturn(Optional.of(settings));
 
         SimulationContext context = new SimulationContext();
-        builder.initializeDefinedContributionContext(context, config);
+        builder.initializeDefinedContributionContext(context, config, "user-1");
 
         assertThat(context.getIdecoEnrollmentDate()).isEqualTo(enrollmentDate);
         assertThat(context.getIdecoContributionYears()).isGreaterThanOrEqualTo(2);

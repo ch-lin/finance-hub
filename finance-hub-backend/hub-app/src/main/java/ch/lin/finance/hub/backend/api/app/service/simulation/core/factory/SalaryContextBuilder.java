@@ -37,7 +37,7 @@ public class SalaryContextBuilder {
     public record BonusInfo(long annualBonus, int bonusPaymentCount) {
     }
 
-    public BonusInfo resolveAnnualBonusInfo(List<SalaryRecord> salaryRecords) {
+    public BonusInfo resolveAnnualBonusInfo(List<SalaryRecord> salaryRecords, String userId) {
         long currentAnnualBonus = 0L;
         int currentBonusPaymentCount = 0;
 
@@ -55,7 +55,7 @@ public class SalaryContextBuilder {
             }
         }
 
-        var salarySettingsOpt = salaryUserSettingsRepository.findFirstBy();
+        var salarySettingsOpt = salaryUserSettingsRepository.findByOwnerUserId(userId);
         if (salarySettingsOpt.isPresent()) {
             var salarySettings = salarySettingsOpt.get();
             Boolean useHist = salarySettings.getUseHistoricalBonusForProjection();
@@ -69,11 +69,12 @@ public class SalaryContextBuilder {
         return new BonusInfo(currentAnnualBonus, currentBonusPaymentCount);
     }
 
-    public void initializeSalaryContext(SimulationContext context, FinanceHubConfig config, int currentYear) {
+    public void initializeSalaryContext(SimulationContext context, FinanceHubConfig config, int currentYear,
+            String userId) {
         long baseMonthlySalary;
-        List<SalaryRecord> salaryRecords = salaryRecordRepository.findAllByOrderByPaymentDateDesc();
+        List<SalaryRecord> salaryRecords = salaryRecordRepository.findAllByOwnerUserIdOrderByPaymentDateDesc(userId);
 
-        BonusInfo bonusInfo = resolveAnnualBonusInfo(salaryRecords);
+        BonusInfo bonusInfo = resolveAnnualBonusInfo(salaryRecords, userId);
         long currentAnnualBonus = bonusInfo.annualBonus();
         int currentBonusPaymentCount = bonusInfo.bonusPaymentCount();
         double healthInsuranceRate = TaxConstants.DEFAULT_HEALTH_INSURANCE_RATE; // Default fallback (~4.9%)

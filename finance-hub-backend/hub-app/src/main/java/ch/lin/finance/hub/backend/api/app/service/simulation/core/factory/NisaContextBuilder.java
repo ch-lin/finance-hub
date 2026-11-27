@@ -35,16 +35,17 @@ public class NisaContextBuilder {
     private final NisaContributionSettingRepository nisaContributionSettingRepository;
     private final NisaUserSettingsRepository nisaUserSettingsRepository;
 
-    public void initializeNisaContext(SimulationContext context, FinanceHubConfig config) {
+    public void initializeNisaContext(SimulationContext context, FinanceHubConfig config, String userId) {
         long startingNisaBalance = 0L;
         long startingNisaPrincipal = 0L;
         long startingGrowthNisaPrincipal = 0L;
-        var latestNisaOpt = nisaRepository.findFirstByOrderByRecordDateDesc();
+        var latestNisaOpt = nisaRepository.findFirstByOwnerUserIdOrderByRecordDateDesc(userId);
         var nisaRecords = new ArrayList<NisaSnapshotRecord>();
-        var nisaUserSettingsOpt = nisaUserSettingsRepository.findFirstBy();
+        var nisaUserSettingsOpt = nisaUserSettingsRepository.findByOwnerUserId(userId);
 
         if (latestNisaOpt.isPresent()) {
-            nisaRecords.addAll(nisaRepository.findByRecordDate(latestNisaOpt.get().getRecordDate()));
+            nisaRecords
+                    .addAll(nisaRepository.findByOwnerUserIdAndRecordDate(userId, latestNisaOpt.get().getRecordDate()));
             startingNisaBalance = nisaRecords.stream().mapToLong(record -> {
                 Long val = record.getCurrentMarketValue();
                 return val != null ? val : 0L;
@@ -98,7 +99,7 @@ public class NisaContextBuilder {
         context.setAccumulatedGrowthNisaPrincipal(startingGrowthNisaPrincipal);
 
         // Fetch NISA contribution settings
-        var nisaSettings = nisaContributionSettingRepository.findAllByOrderByRecordDateDesc();
+        var nisaSettings = nisaContributionSettingRepository.findAllByOwnerUserIdOrderByRecordDateDesc(userId);
 
         // Populate nisaFunds
         for (var record : nisaRecords) {

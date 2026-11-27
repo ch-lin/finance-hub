@@ -28,13 +28,13 @@ public class PensionContextBuilder {
 
     private final PensionRecordRepository pensionRecordRepository;
 
-    public void initializePensionContext(SimulationContext context) {
+    public void initializePensionContext(SimulationContext context, String userId) {
         long accumulatedKousei = 0L;
         int currentKokuminMonths = 0;
         int currentKouseiMonths = 0;
 
         List<PensionRecord> pensionRecords = pensionRecordRepository
-                .findAll(Sort.by(Sort.Direction.DESC, "recordDate"));
+                .findAllByOwnerUserId(userId, Sort.by(Sort.Direction.DESC, "recordDate"));
         if (!pensionRecords.isEmpty()) {
             PensionRecord pr = pensionRecords.get(0);
             if (pr.getKouseiPensionAmount() != null) {

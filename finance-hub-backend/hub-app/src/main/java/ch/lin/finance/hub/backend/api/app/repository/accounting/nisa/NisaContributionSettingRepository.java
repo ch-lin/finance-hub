@@ -45,4 +45,6 @@ public interface NisaContributionSettingRepository extends JpaRepository<NisaCon
      */
     Optional<NisaContributionSetting> findByRecordDateAndAccountTypeAndFundCodeAndCourse(
             LocalDate recordDate, String accountType, String fundCode, String course);
+
+    List<NisaContributionSetting> findAllByOwnerUserIdOrderByRecordDateDesc(String ownerUserId);
 }

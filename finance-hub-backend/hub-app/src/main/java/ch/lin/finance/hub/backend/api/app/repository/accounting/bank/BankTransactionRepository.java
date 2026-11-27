@@ -18,6 +18,7 @@ import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import ch.lin.finance.hub.backend.api.domain.model.accounting.bank.BankTransaction;
@@ -37,6 +38,9 @@ public interface BankTransactionRepository
     @Query("SELECT DISTINCT t.bankName FROM BankTransaction t")
     List<String> findDistinctBankNames();
 
+    @Query("SELECT DISTINCT t.bankName FROM BankTransaction t WHERE t.ownerUserId = :ownerUserId")
+    List<String> findDistinctBankNamesByOwnerUserId(@Param("ownerUserId") String ownerUserId);
+
     /**
      * Finds the most recent transaction for a specific bank based on the
      * transaction date.
@@ -45,6 +49,8 @@ public interface BankTransactionRepository
      * @return the most recent {@link BankTransaction} for the specified bank
      */
     BankTransaction findFirstByBankNameOrderByTransactionDateDesc(String bankName);
+
+    BankTransaction findFirstByOwnerUserIdAndBankNameOrderByTransactionDateDesc(String ownerUserId, String bankName);
 
     /**
      * Finds all bank transactions occurring within a specified, inclusive date

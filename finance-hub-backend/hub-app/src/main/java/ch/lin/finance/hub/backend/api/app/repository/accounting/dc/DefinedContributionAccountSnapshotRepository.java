@@ -45,6 +45,9 @@ public interface DefinedContributionAccountSnapshotRepository
 
     Optional<DefinedContributionAccountSnapshot> findFirstByTypeOrderByRecordDateDesc(DefinedContributionType type);
 
+    Optional<DefinedContributionAccountSnapshot> findFirstByOwnerUserIdAndTypeOrderByRecordDateDesc(
+            String ownerUserId, DefinedContributionType type);
+
     List<DefinedContributionAccountSnapshot> findByRecordDate(LocalDate recordDate);
 
     @Transactional

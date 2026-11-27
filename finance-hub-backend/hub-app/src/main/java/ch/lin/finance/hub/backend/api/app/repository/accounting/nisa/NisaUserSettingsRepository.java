@@ -22,4 +22,6 @@ import ch.lin.finance.hub.backend.api.domain.model.accounting.nisa.NisaUserSetti
 @Repository
 public interface NisaUserSettingsRepository extends JpaRepository<NisaUserSettings, String> {
     Optional<NisaUserSettings> findFirstBy();
+
+    Optional<NisaUserSettings> findByOwnerUserId(String ownerUserId);
 }

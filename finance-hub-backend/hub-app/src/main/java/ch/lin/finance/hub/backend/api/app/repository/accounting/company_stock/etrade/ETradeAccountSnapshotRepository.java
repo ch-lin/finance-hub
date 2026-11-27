@@ -24,4 +24,6 @@ public interface ETradeAccountSnapshotRepository extends JpaRepository<ETradeAcc
     Optional<ETradeAccountSnapshot> findBySymbolAndRecordDate(String symbol, LocalDate recordDate);
 
     Optional<ETradeAccountSnapshot> findFirstByOrderByRecordDateDesc();
+
+    Optional<ETradeAccountSnapshot> findFirstByOwnerUserIdOrderByRecordDateDesc(String ownerUserId);
 }

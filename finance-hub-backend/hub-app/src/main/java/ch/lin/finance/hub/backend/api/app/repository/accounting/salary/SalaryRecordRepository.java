@@ -13,6 +13,7 @@
 package ch.lin.finance.hub.backend.api.app.repository.accounting.salary;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -49,4 +50,8 @@ public interface SalaryRecordRepository extends JpaRepository<SalaryRecord, Long
      * @return an Optional containing the salary record, or empty if not found
      */
     Optional<SalaryRecord> findFirstByTypeOrderByPaymentDateDesc(SalaryType type);
+
+    List<SalaryRecord> findAllByOwnerUserIdOrderByPaymentDateDesc(String ownerUserId);
+
+    Optional<SalaryRecord> findFirstByOwnerUserIdAndTypeOrderByPaymentDateDesc(String ownerUserId, SalaryType type);
 }

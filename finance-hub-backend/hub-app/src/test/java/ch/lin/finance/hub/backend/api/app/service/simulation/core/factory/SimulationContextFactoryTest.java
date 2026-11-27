@@ -13,6 +13,7 @@
 package ch.lin.finance.hub.backend.api.app.service.simulation.core.factory;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +21,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,6 +30,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import ch.lin.finance.hub.backend.api.app.repository.accounting.bank.BankTransactionRepository;
@@ -107,10 +112,19 @@ class SimulationContextFactoryTest {
 
     @BeforeEach
     void setUp() {
+        Jwt jwt = new Jwt("token", Instant.now(), Instant.now().plusSeconds(3600),
+                Map.of("alg", "none"), Map.of("sub", "test-user"));
+        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt));
+
         when(configService.getAllConfigs()).thenReturn(new AllConfigsData("default", List.of("default")));
         when(pensionRuleConfigService.getAllConfigs())
                 .thenReturn(new AllPensionRuleConfigsData("default-pension", List.of("default-pension")));
         when(configService.getConfig("default")).thenReturn(new FinanceHubConfig("default"));
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test
@@ -127,7 +141,7 @@ class SimulationContextFactoryTest {
                 .build();
         when(pensionRuleConfigService.getConfig("default-pension")).thenReturn(pensionConfigResult);
 
-        when(insurancePolicyRepository.findAll()).thenReturn(List.of());
+        when(insurancePolicyRepository.findAllByOwnerUserId("test-user")).thenReturn(List.of());
 
         // Act
         SimulationContext context = factory.createContext();
@@ -151,8 +165,8 @@ class SimulationContextFactoryTest {
                 .build();
         ReflectionTestUtils.setField(Objects.requireNonNull(child), "id", 101L);
 
-        when(childProfileRepository.findAll()).thenReturn(List.of(child));
-        when(insurancePolicyRepository.findAll()).thenReturn(List.of());
+        when(childProfileRepository.findAllByOwnerUserId("test-user")).thenReturn(List.of(child));
+        when(insurancePolicyRepository.findAllByOwnerUserId("test-user")).thenReturn(List.of());
 
         PensionRuleConfigResult pensionConfigResult = PensionRuleConfigResult.builder()
                 .name("default-pension")

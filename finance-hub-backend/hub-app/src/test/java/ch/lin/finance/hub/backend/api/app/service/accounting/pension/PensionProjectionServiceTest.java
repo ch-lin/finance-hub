@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentMatchers;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import static org.mockito.Mockito.when;
@@ -81,7 +82,8 @@ class PensionProjectionServiceTest {
 
         AllConfigsData allConfigs = new AllConfigsData("default", List.of());
         when(configService.getAllConfigs()).thenReturn(allConfigs);
-        when(salaryRecordRepository.findFirstByTypeOrderByPaymentDateDesc(any())).thenReturn(Optional.empty());
+        when(salaryRecordRepository.findFirstByOwnerUserIdAndTypeOrderByPaymentDateDesc(eq("user-1"), any()))
+                .thenReturn(Optional.empty());
 
         FinanceHubConfig config = new FinanceHubConfig("default");
         config.setPensionExpectedMonthlySalary(500_000L); // 50万円
@@ -103,7 +105,7 @@ class PensionProjectionServiceTest {
                 2_000_000L, // kouseiPremiumPaid
                 2_100_000L // totalPremiumPaid
         );
-        when(pensionRecordRepository.findAll(any(Sort.class))).thenReturn(List.of(record));
+        when(pensionRecordRepository.findAllByOwnerUserId(eq("user-1"), any(Sort.class))).thenReturn(List.of(record));
 
         when(pensionCalculator.calculateProjectedBasicPension(any(PensionConfigDto.class), ArgumentMatchers.eq(10),
                 ArgumentMatchers.eq(110), ArgumentMatchers.eq(0), ArgumentMatchers.eq(65))).thenReturn(204_000L);
@@ -114,7 +116,8 @@ class PensionProjectionServiceTest {
         when(pensionCalculator.calculateProjectedBasicPension(any(PensionConfigDto.class), ArgumentMatchers.eq(10),
                 ArgumentMatchers.eq(110), ArgumentMatchers.eq(24), ArgumentMatchers.eq(65))).thenReturn(244_800L);
 
-        when(salaryContextBuilder.resolveAnnualBonusInfo(any())).thenReturn(new SalaryContextBuilder.BonusInfo(0L, 0));
+        when(salaryContextBuilder.resolveAnnualBonusInfo(any(), eq("user-1")))
+                .thenReturn(new SalaryContextBuilder.BonusInfo(0L, 0));
         when(pensionCalculator.calculateYearlyKouseiBenefitIncrement(any(PensionConfigDto.class),
                 ArgumentMatchers.eq(6_000_000L), ArgumentMatchers.eq(0L), ArgumentMatchers.eq(0))).thenReturn(32_886L);
         when(pensionCalculator.calculatePensionMultiplier(65)).thenReturn(1.0);
@@ -171,7 +174,8 @@ class PensionProjectionServiceTest {
 
         AllConfigsData allConfigs = new AllConfigsData("default", List.of());
         when(configService.getAllConfigs()).thenReturn(allConfigs);
-        when(salaryRecordRepository.findFirstByTypeOrderByPaymentDateDesc(any())).thenReturn(Optional.empty());
+        when(salaryRecordRepository.findFirstByOwnerUserIdAndTypeOrderByPaymentDateDesc(eq("user-1"), any()))
+                .thenReturn(Optional.empty());
 
         FinanceHubConfig config = new FinanceHubConfig("default");
         config.setPensionExpectedMonthlySalary(500_000L);
@@ -186,7 +190,7 @@ class PensionProjectionServiceTest {
                 470, 470, // 470 months already!
                 470, 470,
                 0L, 0L, 0L);
-        when(pensionRecordRepository.findAll(any(Sort.class))).thenReturn(List.of(record));
+        when(pensionRecordRepository.findAllByOwnerUserId(eq("user-1"), any(Sort.class))).thenReturn(List.of(record));
 
         when(pensionCalculator.calculateProjectedBasicPension(any(PensionConfigDto.class), ArgumentMatchers.eq(0),
                 ArgumentMatchers.eq(470), ArgumentMatchers.eq(0), ArgumentMatchers.eq(65))).thenReturn(799_000L);
@@ -197,7 +201,8 @@ class PensionProjectionServiceTest {
         when(pensionCalculator.calculateProjectedBasicPension(any(PensionConfigDto.class), ArgumentMatchers.eq(0),
                 ArgumentMatchers.eq(470), ArgumentMatchers.eq(24), ArgumentMatchers.eq(65))).thenReturn(816_000L);
 
-        when(salaryContextBuilder.resolveAnnualBonusInfo(any())).thenReturn(new SalaryContextBuilder.BonusInfo(0L, 0));
+        when(salaryContextBuilder.resolveAnnualBonusInfo(any(), eq("user-1")))
+                .thenReturn(new SalaryContextBuilder.BonusInfo(0L, 0));
         when(pensionCalculator.calculateYearlyKouseiBenefitIncrement(any(PensionConfigDto.class),
                 ArgumentMatchers.eq(6_000_000L), ArgumentMatchers.eq(0L), ArgumentMatchers.eq(0))).thenReturn(32_886L);
         when(pensionCalculator.calculatePensionMultiplier(65)).thenReturn(1.0);

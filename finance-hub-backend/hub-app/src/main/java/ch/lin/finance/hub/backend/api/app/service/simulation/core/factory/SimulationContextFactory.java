@@ -108,7 +108,7 @@ public class SimulationContextFactory {
         UserProfile profile = userProfileRepository.findById(Objects.requireNonNull(userId)).orElse(null);
         context.setProfile(profile);
 
-        List<ChildProfile> children = childProfileRepository.findAll();
+        List<ChildProfile> children = childProfileRepository.findAllByOwnerUserId(userId);
         context.setChildren(children);
 
         int currentAge = 30;
@@ -119,41 +119,41 @@ public class SimulationContextFactory {
         context.setCurrentAge(currentAge);
         context.setCurrentYear(currentYear);
 
-        salaryContextBuilder.initializeSalaryContext(context, config, currentYear);
+        salaryContextBuilder.initializeSalaryContext(context, config, currentYear, userId);
 
         long baselineMonthlyExpenses = incomeExpenseCalculator.calculateDynamicBaselineMonthlyExpenses(config, profile);
         context.setBaselineMonthlyExpenses(baselineMonthlyExpenses);
 
-        pensionContextBuilder.initializePensionContext(context);
+        pensionContextBuilder.initializePensionContext(context, userId);
 
-        nisaContextBuilder.initializeNisaContext(context, config);
+        nisaContextBuilder.initializeNisaContext(context, config, userId);
 
-        dcContextBuilder.initializeDefinedContributionContext(context, config);
+        dcContextBuilder.initializeDefinedContributionContext(context, config, userId);
 
         // Currency conversion for company stock:
         CurrencyCode targetCurrency = currencyConversionService.resolveTargetCurrency(profile, config);
 
-        long companyStockBalance = etradeRepository.findFirstByOrderByRecordDateDesc()
+        long companyStockBalance = etradeRepository.findFirstByOwnerUserIdOrderByRecordDateDesc(userId)
                 .map(snapshot -> currencyConversionService.convertToTargetCurrency(
-                snapshot.getCurrentAccountValue(), targetCurrency, snapshot.getExchangeRate()))
+                        snapshot.getCurrentAccountValue(), targetCurrency, snapshot.getExchangeRate()))
                 .orElse(0L);
         context.setCompanyStockBalance(companyStockBalance);
 
         long initialLiquidCash = 0L;
-        List<String> bankNames = bankTransactionRepository.findDistinctBankNames();
+        List<String> bankNames = bankTransactionRepository.findDistinctBankNamesByOwnerUserId(userId);
         for (String bankName : bankNames) {
             BankTransaction latestTx = bankTransactionRepository
-                    .findFirstByBankNameOrderByTransactionDateDesc(bankName);
+                    .findFirstByOwnerUserIdAndBankNameOrderByTransactionDateDesc(userId, bankName);
             if (latestTx != null && latestTx.getBalance() != null) {
                 initialLiquidCash += latestTx.getBalance();
             }
         }
         context.setCurrentLiquidCash(initialLiquidCash);
 
-        List<MortgageRecord> allMortgages = mortgageRecordRepository.findAll();
+        List<MortgageRecord> allMortgages = mortgageRecordRepository.findAllByOwnerUserId(userId);
         mortgageSimulationService.initializeMortgages(context, allMortgages);
 
-        List<InsurancePolicy> policies = insurancePolicyRepository.findAll();
+        List<InsurancePolicy> policies = insurancePolicyRepository.findAllByOwnerUserId(userId);
         List<InsurancePolicyDto> policyDtos = policies.stream()
                 .map(p -> new InsurancePolicyDto(p.getPolicyType(), p.getAnnualPremium(), p.getEndDate()))
                 .collect(Collectors.toList());
@@ -170,7 +170,8 @@ public class SimulationContextFactory {
                     continue;
                 }
                 if (child.getBirthDate() == null) {
-                    log.warn("Child profile id={} has no birthDate. Skipping education cost calculation.", child.getId());
+                    log.warn("Child profile id={} has no birthDate. Skipping education cost calculation.",
+                            child.getId());
                     continue;
                 }
                 ChildEducationSettings settings = childEducationSettingsRepository != null
@@ -180,8 +181,10 @@ public class SimulationContextFactory {
                     settings = new ChildEducationSettings(child.getId());
                 }
                 ResolvedEducationProfile resolvedProfile = educationProfileResolver.resolve(settings, eduConfig);
-                EducationAbsoluteTimeline timeline = educationTimelineProjector.project(child.getBirthDate(), resolvedProfile);
-                Map<Integer, Long> costMap = educationExpenseCalculator.buildAnnualCostMap(timeline, currentYear, YearMonth.now().getMonthValue());
+                EducationAbsoluteTimeline timeline = educationTimelineProjector.project(child.getBirthDate(),
+                        resolvedProfile);
+                Map<Integer, Long> costMap = educationExpenseCalculator.buildAnnualCostMap(timeline, currentYear,
+                        YearMonth.now().getMonthValue());
                 educationCache.put(child.getId(), costMap);
             }
         }

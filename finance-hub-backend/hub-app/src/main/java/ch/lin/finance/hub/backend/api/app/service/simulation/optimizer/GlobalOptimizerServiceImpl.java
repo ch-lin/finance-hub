@@ -84,7 +84,7 @@ public class GlobalOptimizerServiceImpl implements GlobalOptimizerService {
                 if (gridCombinations > OptimizationConstants.MAX_GRID_SEARCH_SPACE) {
                     throw new OptimizationNotSupportedException(
                             "Search space (" + gridCombinations + ") exceeds maximum limit ("
-                            + OptimizationConstants.MAX_GRID_SEARCH_SPACE + ") for FORCE_GRID strategy.");
+                                    + OptimizationConstants.MAX_GRID_SEARCH_SPACE + ") for FORCE_GRID strategy.");
                 }
                 engine = new GridSearchEngine(fitnessEvaluator, baseData);
                 break;
@@ -104,8 +104,8 @@ public class GlobalOptimizerServiceImpl implements GlobalOptimizerService {
         // 5. Map back to SimulationOverrides
         SimulationOverrides optimizedOverrides = chromosomeMapper.toOverrides(bestSolution);
 
-        Map<Long, List<SimulationOverrides.MortgageEarlyRepaymentOverride>> finalMortgageRepayments
-                = optimizedOverrides.mortgageEarlyRepayments();
+        Map<Long, List<SimulationOverrides.MortgageEarlyRepaymentOverride>> finalMortgageRepayments = optimizedOverrides
+                .mortgageEarlyRepayments();
 
         Integer payoffYear = bestSolution.getGridSingleMortgageRepaymentYear();
         if (payoffYear != null && baseData.getAllMortgages() != null && !baseData.getAllMortgages().isEmpty()) {
@@ -120,7 +120,8 @@ public class GlobalOptimizerServiceImpl implements GlobalOptimizerService {
 
             Long mortgageId = baseData.getAllMortgages().get(0).getId();
             finalMortgageRepayments = Map.of(
-                    mortgageId, List.of(new SimulationOverrides.MortgageEarlyRepaymentOverride(payoffYear, actualAmount)));
+                    mortgageId,
+                    List.of(new SimulationOverrides.MortgageEarlyRepaymentOverride(payoffYear, actualAmount)));
         }
 
         SimulationOverrides baseOverrides = command != null ? command.baseOverrides() : null;
@@ -147,7 +148,8 @@ public class GlobalOptimizerServiceImpl implements GlobalOptimizerService {
                 appliedIdecoAge = userProfile.getTaxAdvantagedWithdrawalAge();
             }
             if (seed.isNisaGrowthTargetLocked() && seed.isNisaTsumitateTargetLocked()) {
-                Optional<NisaUserSettings> nisaSettings = nisaUserSettingsRepository.findFirstBy();
+                Optional<NisaUserSettings> nisaSettings = nisaUserSettingsRepository
+                        .findByOwnerUserId(userProfile.getId());
                 if (nisaSettings.isPresent()) {
                     Long growthOpt = nisaSettings.get().getMonthlyGrowthContribution();
                     Long tsumitateOpt = nisaSettings.get().getMonthlyTsumitateContribution();
@@ -232,8 +234,9 @@ public class GlobalOptimizerServiceImpl implements GlobalOptimizerService {
         seed.setNisaTsumitateTargetLocked(nisaLocked);
 
         if (nisaLocked) {
-            if (applyProfileToOptimizerBaseline) {
-                Optional<NisaUserSettings> nisaSettings = nisaUserSettingsRepository.findFirstBy();
+            if (applyProfileToOptimizerBaseline && userProfile != null) {
+                Optional<NisaUserSettings> nisaSettings = nisaUserSettingsRepository
+                        .findByOwnerUserId(userProfile.getId());
                 if (nisaSettings.isPresent()) {
                     Long growthOpt = nisaSettings.get().getMonthlyGrowthContribution();
                     Long tsumitateOpt = nisaSettings.get().getMonthlyTsumitateContribution();

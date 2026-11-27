@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -258,18 +259,20 @@ class AssetSimulationEngineImplTest {
         FinanceHubConfig config = new FinanceHubConfig("default");
         config.setPensionExpectedMonthlySalary(500_000L); // 500k monthly base
         lenient().when(configService.getConfig("default")).thenReturn(config);
-        lenient().when(salaryRecordRepository.findAllByOrderByPaymentDateDesc())
+        lenient().when(salaryRecordRepository.findAllByOwnerUserIdOrderByPaymentDateDesc(anyString()))
                 .thenReturn(Collections.emptyList());
-        lenient().when(nisaRepository.findFirstByOrderByRecordDateDesc()).thenReturn(Optional.empty());
-        lenient().when(etradeRepository.findFirstByOrderByRecordDateDesc()).thenReturn(Optional.empty());
+        lenient().when(nisaRepository.findFirstByOwnerUserIdOrderByRecordDateDesc(anyString()))
+                .thenReturn(Optional.empty());
+        lenient().when(etradeRepository.findFirstByOwnerUserIdOrderByRecordDateDesc(anyString()))
+                .thenReturn(Optional.empty());
         lenient().when(nisaSettingRepository.findLatestRecordDate()).thenReturn(Optional.empty());
-        lenient().when(dcRepository.findFirstByTypeOrderByRecordDateDesc(any()))
+        lenient().when(dcRepository.findFirstByOwnerUserIdAndTypeOrderByRecordDateDesc(anyString(), any()))
                 .thenReturn(Optional.empty());
 
         Jwt jwt = Jwt.withTokenValue("token").header("alg", "none").claim("sub", "user1").build();
         SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt));
 
-        lenient().when(pensionRecordRepository.findAll(any(Sort.class)))
+        lenient().when(pensionRecordRepository.findAllByOwnerUserId(anyString(), any(Sort.class)))
                 .thenReturn(Collections.emptyList());
         lenient().when(bankTransactionRepository.findByTransactionDateBetween(any(), any()))
                 .thenReturn(Collections.emptyList());
@@ -283,15 +286,18 @@ class AssetSimulationEngineImplTest {
         // Mock Settings to return defaults (0 for all values)
         SalaryUserSettings mockSalarySettings = new SalaryUserSettings();
         mockSalarySettings.setOwnerUserId("test-user");
-        lenient().when(salaryUserSettingsRepository.findFirstBy()).thenReturn(Optional.of(mockSalarySettings));
+        lenient().when(salaryUserSettingsRepository.findByOwnerUserId(anyString()))
+                .thenReturn(Optional.of(mockSalarySettings));
 
         DefinedContributionUserSettings mockDcSettings = new DefinedContributionUserSettings();
         mockDcSettings.setOwnerUserId("test-user");
-        lenient().when(dcUserSettingsRepository.findFirstBy()).thenReturn(Optional.of(mockDcSettings));
+        lenient().when(dcUserSettingsRepository.findByOwnerUserId(anyString()))
+                .thenReturn(Optional.of(mockDcSettings));
 
         NisaUserSettings mockNisaSettings = new NisaUserSettings();
         mockNisaSettings.setOwnerUserId("test-user");
-        lenient().when(nisaUserSettingsRepository.findFirstBy()).thenReturn(Optional.of(mockNisaSettings));
+        lenient().when(nisaUserSettingsRepository.findByOwnerUserId(anyString()))
+                .thenReturn(Optional.of(mockNisaSettings));
 
         // Provide a dummy tax calculation result with 0 taxes, net income = gross
         // salary
@@ -317,9 +323,14 @@ class AssetSimulationEngineImplTest {
                     return new TaxCalculationResult(0L, 0L, 0L, income);
                 });
 
-        lenient().when(salaryUserSettingsRepository.findFirstBy()).thenReturn(Optional.empty());
-        lenient().when(dcUserSettingsRepository.findFirstBy()).thenReturn(Optional.empty());
-        lenient().when(nisaUserSettingsRepository.findFirstBy()).thenReturn(Optional.empty());
+        lenient().when(salaryUserSettingsRepository.findByOwnerUserId(anyString())).thenReturn(Optional.empty());
+        lenient().when(dcUserSettingsRepository.findByOwnerUserId(anyString())).thenReturn(Optional.empty());
+        lenient().when(nisaUserSettingsRepository.findByOwnerUserId(anyString())).thenReturn(Optional.empty());
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test
@@ -335,10 +346,10 @@ class AssetSimulationEngineImplTest {
                 CareerEventType.ABSOLUTE_OVERRIDE,
                 12_000_000.0);
 
-        when(careerEventRepository.findAllByOrderByEventYearMonthAsc())
+        when(careerEventRepository.findAllByOwnerUserIdOrderByEventYearMonthAsc("user1"))
                 .thenReturn(Arrays.asList(overrideEvent));
 
-        when(lifeEventRepository.findAllByOrderByStartYearMonthAsc())
+        when(lifeEventRepository.findAllByOwnerUserIdOrderByStartYearMonthAsc("user1"))
                 .thenReturn(Collections.emptyList());
 
         // When
@@ -373,11 +384,11 @@ class AssetSimulationEngineImplTest {
     @SuppressWarnings("null")
     void shouldUnlockDcAndIdecoAtWithdrawalAge() {
         // Arrange
-        when(careerEventRepository.findAllByOrderByEventYearMonthAsc())
+        when(careerEventRepository.findAllByOwnerUserIdOrderByEventYearMonthAsc("user1"))
                 .thenReturn(Collections.emptyList());
-        when(lifeEventRepository.findAllByOrderByStartYearMonthAsc())
+        when(lifeEventRepository.findAllByOwnerUserIdOrderByStartYearMonthAsc("user1"))
                 .thenReturn(Collections.emptyList());
-        when(salaryRecordRepository.findAllByOrderByPaymentDateDesc())
+        when(salaryRecordRepository.findAllByOwnerUserIdOrderByPaymentDateDesc("user1"))
                 .thenReturn(Collections.emptyList());
 
         FinanceHubConfig config = new FinanceHubConfig("default");
@@ -407,9 +418,11 @@ class AssetSimulationEngineImplTest {
                 0L, 2_000_000L, 0L);
         idecoSnapshot.addFund(idecoFund);
 
-        when(dcRepository.findFirstByTypeOrderByRecordDateDesc(DefinedContributionType.CORPORATE_DC))
+        when(dcRepository.findFirstByOwnerUserIdAndTypeOrderByRecordDateDesc("user1",
+                DefinedContributionType.CORPORATE_DC))
                 .thenReturn(Optional.of(dcSnapshot));
-        when(dcRepository.findFirstByTypeOrderByRecordDateDesc(DefinedContributionType.IDECO))
+        when(dcRepository.findFirstByOwnerUserIdAndTypeOrderByRecordDateDesc("user1",
+                DefinedContributionType.IDECO))
                 .thenReturn(Optional.of(idecoSnapshot));
 
         // When
@@ -450,7 +463,7 @@ class AssetSimulationEngineImplTest {
         lenient().when(mortgage.getEarlyRepayments()).thenReturn(Collections.emptyList());
         lenient().when(mortgage.getRepaymentMethod()).thenReturn(RepaymentMethod.EQUAL_PAYMENT);
 
-        when(mortgageRecordRepository.findAll()).thenReturn(Arrays.asList(mortgage));
+        when(mortgageRecordRepository.findAllByOwnerUserId("user1")).thenReturn(Arrays.asList(mortgage));
 
         FinanceHubConfig config = new FinanceHubConfig("default");
         config.setPensionExpectedMonthlySalary(500_000L);
@@ -462,10 +475,12 @@ class AssetSimulationEngineImplTest {
 
         // Inject 30,000,000L initial liquid cash.
         long initialCash = 30_000_000L;
-        when(bankTransactionRepository.findDistinctBankNames()).thenReturn(Arrays.asList("TestBank"));
+        when(bankTransactionRepository.findDistinctBankNamesByOwnerUserId("user1"))
+                .thenReturn(Arrays.asList("TestBank"));
         BankTransaction mockTx = org.mockito.Mockito.mock(BankTransaction.class);
         lenient().when(mockTx.getBalance()).thenReturn((int) initialCash);
-        when(bankTransactionRepository.findFirstByBankNameOrderByTransactionDateDesc("TestBank")).thenReturn(mockTx);
+        when(bankTransactionRepository.findFirstByOwnerUserIdAndBankNameOrderByTransactionDateDesc("user1",
+                "TestBank")).thenReturn(mockTx);
 
         // Override global mock to return realistic taxes for this test only
         when(taxEngine.calculate(any(), anyLong(), anyLong(), anyInt(),
@@ -575,8 +590,10 @@ class AssetSimulationEngineImplTest {
         lenient().when(nisaSnapshot.getTotalPrincipal()).thenReturn(11_900_000L);
         lenient().when(nisaSnapshot.getCurrentMarketValue()).thenReturn(11_900_000L);
 
-        when(nisaRepository.findFirstByOrderByRecordDateDesc()).thenReturn(Optional.of(nisaSnapshot));
-        when(nisaRepository.findByRecordDate(any())).thenReturn(Arrays.asList(nisaSnapshot));
+        when(nisaRepository.findFirstByOwnerUserIdOrderByRecordDateDesc("user1"))
+                .thenReturn(Optional.of(nisaSnapshot));
+        when(nisaRepository.findByOwnerUserIdAndRecordDate(anyString(), any()))
+                .thenReturn(Arrays.asList(nisaSnapshot));
 
         // Mock NisaContributionSettingRepository to provide 200k monthly contribution
         // (2.4M annually)
@@ -584,7 +601,8 @@ class AssetSimulationEngineImplTest {
                 LocalDate.now(), "NISA (成長)預り", "03311187", "Fund1", "Monthly", 200_000L);
         setting.updateExpectedReturnRate(0.0); // 0% return for easier math
 
-        when(nisaSettingRepository.findAllByOrderByRecordDateDesc()).thenReturn(Arrays.asList(setting));
+        when(nisaSettingRepository.findAllByOwnerUserIdOrderByRecordDateDesc("user1"))
+                .thenReturn(Arrays.asList(setting));
 
         FinanceHubConfig config = new FinanceHubConfig("default");
         config.setNisaExpectedReturnRate(0.0); // Override global config to 0
@@ -618,15 +636,16 @@ class AssetSimulationEngineImplTest {
         lenient().when(nisaSnapshot.getTotalPrincipal()).thenReturn(18_000_000L);
         lenient().when(nisaSnapshot.getCurrentMarketValue()).thenReturn(18_000_000L);
 
-        when(nisaRepository.findFirstByOrderByRecordDateDesc()).thenReturn(Optional.of(nisaSnapshot));
-        when(nisaRepository.findByRecordDate(any())).thenReturn(Arrays.asList(nisaSnapshot));
+        when(nisaRepository.findFirstByOwnerUserIdOrderByRecordDateDesc("user1")).thenReturn(Optional.of(nisaSnapshot));
+        when(nisaRepository.findByOwnerUserIdAndRecordDate(anyString(), any())).thenReturn(Arrays.asList(nisaSnapshot));
 
         // NISA setting: 100k monthly (1.2M annually), 0% return for simple math
         NisaContributionSetting setting = new NisaContributionSetting(LocalDate.now(), "NISA (つみたて)預り", "03311187",
                 "Fund1",
                 "Monthly", 100_000L);
         setting.updateExpectedReturnRate(0.0);
-        when(nisaSettingRepository.findAllByOrderByRecordDateDesc()).thenReturn(Arrays.asList(setting));
+        when(nisaSettingRepository.findAllByOwnerUserIdOrderByRecordDateDesc("user1"))
+                .thenReturn(Arrays.asList(setting));
 
         FinanceHubConfig config = new FinanceHubConfig("default");
         config.setNisaExpectedReturnRate(0.0);
@@ -646,7 +665,7 @@ class AssetSimulationEngineImplTest {
         lenient().when(bigExpense.getStartYearMonth()).thenReturn(YearMonth.now().plusYears(1).withMonth(1)); // Year 1
         lenient().when(bigExpense.getEndYearMonth()).thenReturn(YearMonth.now().plusYears(1).withMonth(1));
 
-        when(lifeEventRepository.findAllByOrderByStartYearMonthAsc())
+        when(lifeEventRepository.findAllByOwnerUserIdOrderByStartYearMonthAsc("user1"))
                 .thenReturn(Arrays.asList(bigExpense));
 
         List<AssetSimulationYearlyResult> simulation = engine.runSimulation(32);
@@ -678,15 +697,16 @@ class AssetSimulationEngineImplTest {
         lenient().when(nisaSnapshot.getTotalPrincipal()).thenReturn(12_000_000L);
         lenient().when(nisaSnapshot.getCurrentMarketValue()).thenReturn(12_000_000L);
 
-        when(nisaRepository.findFirstByOrderByRecordDateDesc()).thenReturn(Optional.of(nisaSnapshot));
-        when(nisaRepository.findByRecordDate(any())).thenReturn(Arrays.asList(nisaSnapshot));
+        when(nisaRepository.findFirstByOwnerUserIdOrderByRecordDateDesc("user1")).thenReturn(Optional.of(nisaSnapshot));
+        when(nisaRepository.findByOwnerUserIdAndRecordDate(anyString(), any())).thenReturn(Arrays.asList(nisaSnapshot));
 
         // NISA setting: 200k monthly (2.4M annually), 0% return for simple math
         NisaContributionSetting setting = new NisaContributionSetting(LocalDate.now(), "NISA (成長)預り", "03311187",
                 "Fund1",
                 "Monthly", 200_000L);
         setting.updateExpectedReturnRate(0.0);
-        when(nisaSettingRepository.findAllByOrderByRecordDateDesc()).thenReturn(Arrays.asList(setting));
+        when(nisaSettingRepository.findAllByOwnerUserIdOrderByRecordDateDesc("user1"))
+                .thenReturn(Arrays.asList(setting));
 
         FinanceHubConfig config = new FinanceHubConfig("default");
         config.setNisaExpectedReturnRate(0.0);
@@ -706,7 +726,7 @@ class AssetSimulationEngineImplTest {
         lenient().when(bigExpense.getStartYearMonth()).thenReturn(YearMonth.now().plusYears(1).withMonth(1)); // Year 1
         lenient().when(bigExpense.getEndYearMonth()).thenReturn(YearMonth.now().plusYears(1).withMonth(1));
 
-        when(lifeEventRepository.findAllByOrderByStartYearMonthAsc())
+        when(lifeEventRepository.findAllByOwnerUserIdOrderByStartYearMonthAsc("user1"))
                 .thenReturn(Arrays.asList(bigExpense));
 
         List<AssetSimulationYearlyResult> simulation = engine.runSimulation(32);
@@ -738,7 +758,8 @@ class AssetSimulationEngineImplTest {
                 .thenReturn(MonetaryAmount.of(50000L, CurrencyCode.USD));
         lenient().when(snapshot.getExchangeRate()).thenReturn(null);
 
-        when(etradeRepository.findFirstByOrderByRecordDateDesc()).thenReturn(Optional.of(snapshot));
+        when(etradeRepository.findFirstByOwnerUserIdOrderByRecordDateDesc("user1"))
+                .thenReturn(Optional.of(snapshot));
 
         FinanceHubConfig config = new FinanceHubConfig("default");
         config.setPensionExpectedMonthlySalary(500_000L);
@@ -770,7 +791,8 @@ class AssetSimulationEngineImplTest {
         lenient().when(mockRecord.getEmploymentInsurance()).thenReturn(3_000L);
         lenient().when(mockRecord.getNetAmount()).thenReturn(392_000L);
 
-        when(salaryRecordRepository.findAllByOrderByPaymentDateDesc()).thenReturn(Arrays.asList(mockRecord));
+        when(salaryRecordRepository.findAllByOwnerUserIdOrderByPaymentDateDesc("user1"))
+                .thenReturn(Arrays.asList(mockRecord));
 
         // Stub the tax engine to return a non-zero tax result for the full year
         when(taxEngine.calculate(any(), anyLong(), anyLong(), anyInt(),
@@ -817,23 +839,25 @@ class AssetSimulationEngineImplTest {
     void shouldUseUserSettingsAsFallbackWhenSnapshotsAreMissing() {
         // Arrange
         // No snapshots
-        when(nisaRepository.findFirstByOrderByRecordDateDesc()).thenReturn(Optional.empty());
-        when(dcRepository.findFirstByTypeOrderByRecordDateDesc(DefinedContributionType.CORPORATE_DC))
+        when(nisaRepository.findFirstByOwnerUserIdOrderByRecordDateDesc("user1")).thenReturn(Optional.empty());
+        when(dcRepository.findFirstByOwnerUserIdAndTypeOrderByRecordDateDesc("user1",
+                DefinedContributionType.CORPORATE_DC))
                 .thenReturn(Optional.empty());
-        when(dcRepository.findFirstByTypeOrderByRecordDateDesc(DefinedContributionType.IDECO))
+        when(dcRepository.findFirstByOwnerUserIdAndTypeOrderByRecordDateDesc("user1",
+                DefinedContributionType.IDECO))
                 .thenReturn(Optional.empty());
 
         // But we DO have Profile settings
         NisaUserSettings nisaSettings = new NisaUserSettings();
         nisaSettings.setMonthlyGrowthContribution(30_000L);
         nisaSettings.setNisaExpectedReturnRate(0.04);
-        when(nisaUserSettingsRepository.findFirstBy()).thenReturn(Optional.of(nisaSettings));
+        when(nisaUserSettingsRepository.findByOwnerUserId("user1")).thenReturn(Optional.of(nisaSettings));
 
         DefinedContributionUserSettings dcSettings = new DefinedContributionUserSettings();
         dcSettings.setMonthlyIdecoContribution(20_000L);
         dcSettings.setIdecoExpectedReturnRate(0.03);
         dcSettings.setMonthlyDcMatchingContribution(10_000L);
-        when(dcUserSettingsRepository.findFirstBy()).thenReturn(Optional.of(dcSettings));
+        when(dcUserSettingsRepository.findByOwnerUserId("user1")).thenReturn(Optional.of(dcSettings));
 
         FinanceHubConfig config = new FinanceHubConfig("default");
         config.setPensionExpectedMonthlySalary(500_000L);

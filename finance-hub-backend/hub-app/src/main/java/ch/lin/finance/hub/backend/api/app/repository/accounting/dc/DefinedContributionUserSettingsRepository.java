@@ -23,4 +23,6 @@ import ch.lin.finance.hub.backend.api.domain.model.accounting.dc.DefinedContribu
 public interface DefinedContributionUserSettingsRepository
         extends JpaRepository<DefinedContributionUserSettings, String> {
     Optional<DefinedContributionUserSettings> findFirstBy();
+
+    Optional<DefinedContributionUserSettings> findByOwnerUserId(String ownerUserId);
 }

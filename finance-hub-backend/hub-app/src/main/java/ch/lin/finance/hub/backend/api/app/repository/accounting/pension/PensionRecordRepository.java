@@ -13,8 +13,10 @@
 package ch.lin.finance.hub.backend.api.app.repository.accounting.pension;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -33,4 +35,6 @@ public interface PensionRecordRepository extends JpaRepository<PensionRecord, Lo
      * @return An Optional containing the record if found, or empty if not.
      */
     Optional<PensionRecord> findByRecordDate(LocalDate recordDate);
+
+    List<PensionRecord> findAllByOwnerUserId(String ownerUserId, Sort sort);
 }

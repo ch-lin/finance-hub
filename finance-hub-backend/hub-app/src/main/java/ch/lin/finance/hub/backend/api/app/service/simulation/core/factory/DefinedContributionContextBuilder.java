@@ -32,10 +32,12 @@ public class DefinedContributionContextBuilder {
     private final DefinedContributionAccountSnapshotRepository dcRepository;
     private final DefinedContributionUserSettingsRepository dcUserSettingsRepository;
 
-    public void initializeDefinedContributionContext(SimulationContext context, FinanceHubConfig config) {
+    public void initializeDefinedContributionContext(SimulationContext context, FinanceHubConfig config,
+            String userId) {
         long startingDcBalance = 0L;
-        var latestDcOpt = dcRepository.findFirstByTypeOrderByRecordDateDesc(DefinedContributionType.CORPORATE_DC);
-        var dcSettingsOpt = dcUserSettingsRepository.findFirstBy();
+        var latestDcOpt = dcRepository.findFirstByOwnerUserIdAndTypeOrderByRecordDateDesc(
+                userId, DefinedContributionType.CORPORATE_DC);
+        var dcSettingsOpt = dcUserSettingsRepository.findByOwnerUserId(userId);
         if (latestDcOpt.isPresent()) {
             var accountSnapshot = latestDcOpt.get();
 
@@ -106,7 +108,8 @@ public class DefinedContributionContextBuilder {
         context.setDcBalance(startingDcBalance);
 
         long startingIdecoBalance = 0L;
-        var latestIdecoOpt = dcRepository.findFirstByTypeOrderByRecordDateDesc(DefinedContributionType.IDECO);
+        var latestIdecoOpt = dcRepository.findFirstByOwnerUserIdAndTypeOrderByRecordDateDesc(
+                userId, DefinedContributionType.IDECO);
         if (latestIdecoOpt.isPresent()) {
             var accountSnapshot = latestIdecoOpt.get();
 

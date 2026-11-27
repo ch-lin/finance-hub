@@ -69,4 +69,8 @@ public interface NisaSnapshotRecordRepository extends JpaRepository<NisaSnapshot
      */
     Optional<NisaSnapshotRecord> findByRecordDateAndAccountTypeAndFundCode(LocalDate recordDate, String accountType,
             String fundCode);
+
+    Optional<NisaSnapshotRecord> findFirstByOwnerUserIdOrderByRecordDateDesc(String ownerUserId);
+
+    List<NisaSnapshotRecord> findByOwnerUserIdAndRecordDate(String ownerUserId, LocalDate recordDate);
 }

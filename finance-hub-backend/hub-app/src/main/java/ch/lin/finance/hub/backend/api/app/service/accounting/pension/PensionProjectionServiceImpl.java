@@ -72,7 +72,7 @@ public class PensionProjectionServiceImpl implements PensionProjectionService {
         FinanceHubConfig config = configService.getConfig(activeConfigName);
 
         Optional<SalaryRecord> latestMonthlySalary = salaryRecordRepository
-                .findFirstByTypeOrderByPaymentDateDesc(SalaryType.MONTHLY_SALARY);
+                .findFirstByOwnerUserIdAndTypeOrderByPaymentDateDesc(userId, SalaryType.MONTHLY_SALARY);
         long expectedSalary;
         if (latestMonthlySalary.isPresent() && latestMonthlySalary.get().getGrossAmount() != null) {
             expectedSalary = latestMonthlySalary.get().getGrossAmount();
@@ -92,7 +92,7 @@ public class PensionProjectionServiceImpl implements PensionProjectionService {
                 config.getPensionStartAge(), pensionStartAgeOverride);
 
         List<PensionRecord> records = pensionRecordRepository
-                .findAll(Sort.by(Sort.Direction.DESC, "recordDate"));
+                .findAllByOwnerUserId(userId, Sort.by(Sort.Direction.DESC, "recordDate"));
         PensionRecord latestRecord = records.isEmpty() ? null : records.get(0);
 
         long currentKouseiAmount = 0L;
@@ -110,8 +110,8 @@ public class PensionProjectionServiceImpl implements PensionProjectionService {
             currentKouseiMonths = kouseiMonthsObj != null ? kouseiMonthsObj : 0;
         }
 
-        List<SalaryRecord> salaryRecords = salaryRecordRepository.findAllByOrderByPaymentDateDesc();
-        SalaryContextBuilder.BonusInfo bonusInfo = salaryContextBuilder.resolveAnnualBonusInfo(salaryRecords);
+        List<SalaryRecord> salaryRecords = salaryRecordRepository.findAllByOwnerUserIdOrderByPaymentDateDesc(userId);
+        SalaryContextBuilder.BonusInfo bonusInfo = salaryContextBuilder.resolveAnnualBonusInfo(salaryRecords, userId);
         long annualBaseSalary = expectedSalary * 12;
         long annualBonus = bonusInfo.annualBonus();
         int bonusPaymentCount = bonusInfo.bonusPaymentCount();

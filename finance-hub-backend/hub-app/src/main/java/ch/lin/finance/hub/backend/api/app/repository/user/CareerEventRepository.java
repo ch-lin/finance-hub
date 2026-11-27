@@ -22,4 +22,6 @@ import ch.lin.finance.hub.backend.api.domain.model.event.CareerEvent;
 @Repository
 public interface CareerEventRepository extends JpaRepository<CareerEvent, Long> {
     List<CareerEvent> findAllByOrderByEventYearMonthAsc();
+
+    List<CareerEvent> findAllByOwnerUserIdOrderByEventYearMonthAsc(String ownerUserId);
 }

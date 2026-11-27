@@ -22,4 +22,6 @@ import ch.lin.finance.hub.backend.api.domain.model.accounting.salary.SalaryUserS
 @Repository
 public interface SalaryUserSettingsRepository extends JpaRepository<SalaryUserSettings, String> {
     Optional<SalaryUserSettings> findFirstBy();
+
+    Optional<SalaryUserSettings> findByOwnerUserId(String ownerUserId);
 }

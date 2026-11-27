@@ -12,6 +12,8 @@
  */
 package ch.lin.finance.hub.backend.api.app.repository.user.child;
 
+import java.util.List;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -19,4 +21,6 @@ import ch.lin.finance.hub.backend.api.domain.model.profile.child.ChildProfile;
 
 @Repository
 public interface ChildProfileRepository extends JpaRepository<ChildProfile, Long> {
+
+    List<ChildProfile> findAllByOwnerUserId(String ownerUserId);
 }

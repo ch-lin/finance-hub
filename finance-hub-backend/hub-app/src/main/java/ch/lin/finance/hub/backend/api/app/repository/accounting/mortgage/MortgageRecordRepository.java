@@ -29,4 +29,6 @@ public interface MortgageRecordRepository extends JpaRepository<MortgageRecord, 
     List<MortgageRecord> findByOwnerUserIdAndTaxDeductionEligibleTrue(String ownerUserId);
 
     Optional<MortgageRecord> findByBankNameAndContractNumber(String bankName, String contractNumber);
+
+    List<MortgageRecord> findAllByOwnerUserId(String ownerUserId);
 }

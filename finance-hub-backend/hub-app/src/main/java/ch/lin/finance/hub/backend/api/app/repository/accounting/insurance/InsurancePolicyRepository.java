@@ -12,6 +12,7 @@
  */
 package ch.lin.finance.hub.backend.api.app.repository.accounting.insurance;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -23,5 +24,7 @@ import ch.lin.finance.hub.backend.api.domain.model.accounting.insurance.Insuranc
 public interface InsurancePolicyRepository extends JpaRepository<InsurancePolicy, Long> {
 
     Optional<InsurancePolicy> findByCompanyNameAndPolicyNumber(String companyName, String policyNumber);
+
+    List<InsurancePolicy> findAllByOwnerUserId(String ownerUserId);
 
 }
