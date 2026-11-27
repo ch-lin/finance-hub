@@ -36,6 +36,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import ch.lin.finance.hub.backend.api.app.repository.user.child.ChildProfileRepository;
 import ch.lin.finance.hub.backend.api.app.repository.user.child.education.ChildEducationSettingsRepository;
+import ch.lin.finance.hub.backend.api.app.security.OwnershipGuard;
 import ch.lin.finance.hub.backend.api.app.service.config.education.EducationConfigService;
 import ch.lin.finance.hub.backend.api.app.service.profile.child.education.command.StageOverrideCommand;
 import ch.lin.finance.hub.backend.api.app.service.profile.child.education.command.UpdateChildEducationSettingsCommand;
@@ -73,6 +74,9 @@ class ChildEducationSettingsServiceImplTest {
     @Mock
     private EducationTimelineProjector educationTimelineProjector;
 
+    @Mock
+    private OwnershipGuard ownershipGuard;
+
     @InjectMocks
     private ChildEducationSettingsServiceImpl service;
 
@@ -97,7 +101,7 @@ class ChildEducationSettingsServiceImplTest {
         ChildEducationSettings settings = new ChildEducationSettings(1L);
         settings.setPrimaryTrack(PrimaryTrack.PUBLIC);
 
-        when(childProfileRepository.findById(1L)).thenReturn(Optional.of(childProfile));
+        when(ownershipGuard.loadReadable(childProfileRepository, 1L)).thenReturn(childProfile);
         when(settingsRepository.findByChildProfileId(1L)).thenReturn(Optional.of(settings));
 
         ChildEducationSettingsResult result = service.getSettings(1L);
@@ -121,7 +125,7 @@ class ChildEducationSettingsServiceImplTest {
                 .events(Collections.emptyList())
                 .build();
 
-        when(childProfileRepository.findById(1L)).thenReturn(Optional.of(childProfile));
+        when(ownershipGuard.loadOwned(childProfileRepository, 1L)).thenReturn(childProfile);
         when(settingsRepository.findByChildProfileId(1L)).thenReturn(Optional.empty());
         when(educationConfigService.getDefaultDomainConfig()).thenReturn(defaultConfig);
         when(educationProfileResolver.resolve(any(), any())).thenReturn(resolvedProfile);
@@ -143,7 +147,7 @@ class ChildEducationSettingsServiceImplTest {
 
         ResolvedEducationProfile resolvedProfile = new ResolvedEducationProfile(Collections.emptyMap());
 
-        when(childProfileRepository.findById(1L)).thenReturn(Optional.of(childProfile));
+        when(ownershipGuard.loadOwned(childProfileRepository, 1L)).thenReturn(childProfile);
         when(settingsRepository.findByChildProfileId(1L)).thenReturn(Optional.empty());
         when(educationConfigService.getDefaultDomainConfig()).thenReturn(defaultConfig);
         when(educationProfileResolver.resolve(any(), any())).thenReturn(resolvedProfile);
@@ -181,7 +185,7 @@ class ChildEducationSettingsServiceImplTest {
                 .events(Collections.emptyList())
                 .build();
 
-        when(childProfileRepository.findById(1L)).thenReturn(Optional.of(childProfile));
+        when(ownershipGuard.loadOwned(childProfileRepository, 1L)).thenReturn(childProfile);
         when(settingsRepository.findByChildProfileId(1L)).thenReturn(Optional.of(existingSettings));
         when(educationConfigService.getDefaultDomainConfig()).thenReturn(defaultConfig);
         when(educationProfileResolver.resolve(any(), any())).thenReturn(resolvedProfile);
@@ -221,7 +225,7 @@ class ChildEducationSettingsServiceImplTest {
                 .events(Collections.emptyList())
                 .build();
 
-        when(childProfileRepository.findById(1L)).thenReturn(Optional.of(childProfile));
+        when(ownershipGuard.loadOwned(childProfileRepository, 1L)).thenReturn(childProfile);
         when(settingsRepository.findByChildProfileId(1L)).thenReturn(Optional.of(existing));
         when(educationConfigService.getDefaultDomainConfig()).thenReturn(defaultConfig);
         when(educationProfileResolver.resolve(any(), any())).thenReturn(resolvedProfile);
@@ -270,7 +274,7 @@ class ChildEducationSettingsServiceImplTest {
                 .events(Collections.emptyList())
                 .build();
 
-        when(childProfileRepository.findById(1L)).thenReturn(Optional.of(childProfile));
+        when(ownershipGuard.loadOwned(childProfileRepository, 1L)).thenReturn(childProfile);
         when(settingsRepository.findByChildProfileId(1L)).thenReturn(Optional.of(existing));
         when(educationConfigService.getDefaultDomainConfig()).thenReturn(defaultConfig);
         when(educationProfileResolver.resolve(any(), any())).thenReturn(resolvedProfile);
@@ -282,12 +286,16 @@ class ChildEducationSettingsServiceImplTest {
         assertNotNull(result);
         assertTrue(result.getPreschoolSplitEnabled());
         assertNotNull(result.getPreschoolOverride());
-        assertNull(result.getPreschoolOverride().getManualDuration(), "Stage 1 manualDuration must be sanitized to null in two-stage mode");
-        assertEquals(new BigDecimal("500000"), result.getPreschoolOverride().getManualTuition(), "Stage 1 manualTuition must be preserved");
+        assertNull(result.getPreschoolOverride().getManualDuration(),
+                "Stage 1 manualDuration must be sanitized to null in two-stage mode");
+        assertEquals(new BigDecimal("500000"), result.getPreschoolOverride().getManualTuition(),
+                "Stage 1 manualTuition must be preserved");
 
         assertNotNull(result.getPreschoolOverride2());
-        assertNull(result.getPreschoolOverride2().getManualDuration(), "Stage 2 manualDuration must be sanitized to null in two-stage mode");
-        assertEquals(new BigDecimal("1800000"), result.getPreschoolOverride2().getManualTuition(), "Stage 2 manualTuition must be preserved");
+        assertNull(result.getPreschoolOverride2().getManualDuration(),
+                "Stage 2 manualDuration must be sanitized to null in two-stage mode");
+        assertEquals(new BigDecimal("1800000"), result.getPreschoolOverride2().getManualTuition(),
+                "Stage 2 manualTuition must be preserved");
 
         ArgumentCaptor<ChildEducationSettings> captor = ArgumentCaptor.forClass(ChildEducationSettings.class);
         verify(settingsRepository).save(captor.capture());
@@ -315,7 +323,7 @@ class ChildEducationSettingsServiceImplTest {
                 .events(Collections.emptyList())
                 .build();
 
-        when(childProfileRepository.findById(1L)).thenReturn(Optional.of(childProfile));
+        when(ownershipGuard.loadOwned(childProfileRepository, 1L)).thenReturn(childProfile);
         when(settingsRepository.findByChildProfileId(1L)).thenReturn(Optional.of(existing));
         when(educationConfigService.getDefaultDomainConfig()).thenReturn(defaultConfig);
         when(educationProfileResolver.resolve(any(), any())).thenReturn(resolvedProfile);
@@ -341,7 +349,7 @@ class ChildEducationSettingsServiceImplTest {
 
     @Test
     void updateSettings_WhenPreschoolSplitEnabledAndTrack2IsNull_ThrowsIllegalArgumentException() {
-        when(childProfileRepository.findById(1L)).thenReturn(Optional.of(childProfile));
+        when(ownershipGuard.loadOwned(childProfileRepository, 1L)).thenReturn(childProfile);
         when(settingsRepository.findByChildProfileId(1L)).thenReturn(Optional.of(new ChildEducationSettings(1L)));
 
         UpdateChildEducationSettingsCommand command = UpdateChildEducationSettingsCommand.builder()
@@ -358,7 +366,7 @@ class ChildEducationSettingsServiceImplTest {
 
     @Test
     void updateSettings_WhenPreschoolSplitEnabledAndInvalidDuration_ThrowsIllegalArgumentException() {
-        when(childProfileRepository.findById(1L)).thenReturn(Optional.of(childProfile));
+        when(ownershipGuard.loadOwned(childProfileRepository, 1L)).thenReturn(childProfile);
         when(settingsRepository.findByChildProfileId(1L)).thenReturn(Optional.of(new ChildEducationSettings(1L)));
 
         UpdateChildEducationSettingsCommand command = UpdateChildEducationSettingsCommand.builder()
@@ -375,7 +383,7 @@ class ChildEducationSettingsServiceImplTest {
 
     @Test
     void updateSettings_WhenSingleTrackAndManualDurationLessThan36_ThrowsIllegalArgumentException() {
-        when(childProfileRepository.findById(1L)).thenReturn(Optional.of(childProfile));
+        when(ownershipGuard.loadOwned(childProfileRepository, 1L)).thenReturn(childProfile);
         when(settingsRepository.findByChildProfileId(1L)).thenReturn(Optional.of(new ChildEducationSettings(1L)));
 
         UpdateChildEducationSettingsCommand command = UpdateChildEducationSettingsCommand.builder()
@@ -391,7 +399,7 @@ class ChildEducationSettingsServiceImplTest {
 
     @Test
     void deleteSettings_Success() {
-        when(childProfileRepository.findById(1L)).thenReturn(Optional.of(childProfile));
+        when(ownershipGuard.loadOwned(childProfileRepository, 1L)).thenReturn(childProfile);
 
         service.deleteSettings(1L);
 

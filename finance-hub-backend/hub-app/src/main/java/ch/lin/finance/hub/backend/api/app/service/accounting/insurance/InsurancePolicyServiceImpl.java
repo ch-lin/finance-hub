@@ -20,11 +20,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import ch.lin.finance.hub.backend.api.app.repository.accounting.insurance.InsurancePolicyRepository;
+import ch.lin.finance.hub.backend.api.app.security.OwnershipGuard;
 import ch.lin.finance.hub.backend.api.app.service.accounting.insurance.command.SaveInsurancePolicyCommand;
 import ch.lin.finance.hub.backend.api.app.service.accounting.insurance.result.InsurancePolicyResult;
 import ch.lin.finance.hub.backend.api.app.util.SecurityUtil;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.insurance.InsurancePolicy;
-import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -33,6 +33,7 @@ import lombok.RequiredArgsConstructor;
 public class InsurancePolicyServiceImpl implements InsurancePolicyService {
 
     private final InsurancePolicyRepository repository;
+    private final OwnershipGuard ownershipGuard;
 
     @Override
     @Transactional(readOnly = true)
@@ -47,8 +48,7 @@ public class InsurancePolicyServiceImpl implements InsurancePolicyService {
     @Transactional(readOnly = true)
     public InsurancePolicyResult getPolicy(Long id) {
         String userId = SecurityUtil.getCurrentUserId();
-        InsurancePolicy policy = repository.findById(Objects.requireNonNull(id))
-                .orElseThrow(() -> new EntityNotFoundException("InsurancePolicy not found with id: " + id));
+        InsurancePolicy policy = ownershipGuard.loadReadable(repository, id);
         return InsurancePolicyResult.fromEntity(policy, userId);
     }
 
@@ -68,8 +68,7 @@ public class InsurancePolicyServiceImpl implements InsurancePolicyService {
     @Override
     public InsurancePolicyResult updatePolicy(Long id, SaveInsurancePolicyCommand command) {
         String userId = SecurityUtil.getCurrentUserId();
-        InsurancePolicy existing = repository.findById(Objects.requireNonNull(id))
-                .orElseThrow(() -> new EntityNotFoundException("InsurancePolicy not found with id: " + id));
+        InsurancePolicy existing = ownershipGuard.loadOwned(repository, id);
 
         existing.setCompanyName(command.companyName());
         existing.setPolicyNumber(command.policyNumber());
@@ -82,6 +81,7 @@ public class InsurancePolicyServiceImpl implements InsurancePolicyService {
 
     @Override
     public void deletePolicy(Long id) {
-        repository.deleteById(Objects.requireNonNull(id));
+        InsurancePolicy policy = ownershipGuard.loadOwned(repository, id);
+        repository.delete(Objects.requireNonNull(policy));
     }
 }

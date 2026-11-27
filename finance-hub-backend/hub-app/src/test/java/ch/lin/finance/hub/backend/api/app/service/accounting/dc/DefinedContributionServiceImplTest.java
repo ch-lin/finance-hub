@@ -14,7 +14,6 @@ package ch.lin.finance.hub.backend.api.app.service.accounting.dc;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -34,11 +33,13 @@ import org.springframework.web.server.ResponseStatusException;
 
 import ch.lin.finance.hub.backend.api.app.repository.accounting.dc.DefinedContributionAccountSnapshotRepository;
 import ch.lin.finance.hub.backend.api.app.repository.accounting.dc.DefinedContributionFundSnapshotRepository;
+import ch.lin.finance.hub.backend.api.app.security.OwnershipGuard;
 import ch.lin.finance.hub.backend.api.app.service.accounting.dc.command.FundAllocationCommand;
 import ch.lin.finance.hub.backend.api.app.service.accounting.dc.command.UpdateAccountAllocationsCommand;
 import ch.lin.finance.hub.backend.api.app.service.accounting.dc.command.UpdateAllocationCommand;
 import ch.lin.finance.hub.backend.api.app.service.accounting.dc.result.DefinedContributionAccountSnapshotResult;
 import ch.lin.finance.hub.backend.api.app.service.accounting.dc.result.DefinedContributionFundSnapshotResult;
+import ch.lin.finance.hub.backend.api.common.exception.ItemNotFoundException;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.dc.DefinedContributionAccountSnapshot;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.dc.DefinedContributionFundSnapshot;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.dc.DefinedContributionType;
@@ -51,6 +52,9 @@ class DefinedContributionServiceImplTest {
 
     @Mock
     private DefinedContributionFundSnapshotRepository dcFundRepository;
+
+    @Mock
+    private OwnershipGuard ownershipGuard;
 
     @InjectMocks
     private DefinedContributionServiceImpl service;
@@ -65,7 +69,7 @@ class DefinedContributionServiceImplTest {
                 12_000L, 60.0);
         ReflectionTestUtils.setField(fund, "id", 1L);
 
-        when(dcFundRepository.findById(1L)).thenReturn(Optional.of(fund));
+        when(ownershipGuard.loadOwned(dcFundRepository, 1L)).thenReturn(fund);
         when(dcFundRepository.save(any(DefinedContributionFundSnapshot.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 
@@ -82,15 +86,14 @@ class DefinedContributionServiceImplTest {
     @Test
     @DisplayName("updateAllocation: throws 404 when fund does not exist")
     void testUpdateAllocation_NotFound() {
-        when(dcFundRepository.findById(99L)).thenReturn(Optional.empty());
+        when(ownershipGuard.loadOwned(dcFundRepository, 99L))
+                .thenThrow(new ItemNotFoundException("Resource not found"));
 
         UpdateAllocationCommand command = new UpdateAllocationCommand();
         command.setExpectedReturnRate(0.04);
 
         assertThatThrownBy(() -> service.updateAllocation(99L, command))
-                .isInstanceOf(ResponseStatusException.class)
-                .extracting(ex -> ((ResponseStatusException) ex).getStatusCode())
-                .isEqualTo(HttpStatus.NOT_FOUND);
+                .isInstanceOf(ItemNotFoundException.class);
     }
 
     @Test
@@ -98,7 +101,7 @@ class DefinedContributionServiceImplTest {
     @DisplayName("updateAccountAllocations: floors non-remainder funds and assigns remainder accurately")
     void testUpdateAccountAllocations_FloorAndRemainder() {
         DefinedContributionAccountSnapshot account = createAccountWithThreeFunds(23_000L);
-        when(dcRepository.findById(10L)).thenReturn(Optional.of(account));
+        when(ownershipGuard.loadOwned(dcRepository, 10L)).thenReturn(account);
         when(dcRepository.save(any(DefinedContributionAccountSnapshot.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 
@@ -140,7 +143,7 @@ class DefinedContributionServiceImplTest {
         account.addFund(new DefinedContributionFundSnapshot(
                 "国内株式", "Fund B", "F002", 0, 0, 0, 0, 0, 0, 0L, 0.0));
 
-        when(dcRepository.findById(11L)).thenReturn(Optional.of(account));
+        when(ownershipGuard.loadOwned(dcRepository, 11L)).thenReturn(account);
         when(dcRepository.save(any(DefinedContributionAccountSnapshot.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 
@@ -159,7 +162,7 @@ class DefinedContributionServiceImplTest {
     @DisplayName("updateAccountAllocations: rejects when sum is not 100% with 400 Bad Request")
     void testUpdateAccountAllocations_SumNot100() {
         DefinedContributionAccountSnapshot account = createAccountWithThreeFunds(23_000L);
-        when(dcRepository.findById(10L)).thenReturn(Optional.of(account));
+        when(ownershipGuard.loadOwned(dcRepository, 10L)).thenReturn(account);
 
         UpdateAccountAllocationsCommand command = createCommand("F003",
                 item("F001", 40.0),
@@ -199,7 +202,7 @@ class DefinedContributionServiceImplTest {
     @DisplayName("updateAccountAllocations: rejects remainderFundCode not in account with 400 Bad Request")
     void testUpdateAccountAllocations_InvalidRemainderFundCode() {
         DefinedContributionAccountSnapshot account = createAccountWithThreeFunds(23_000L);
-        when(dcRepository.findById(10L)).thenReturn(Optional.of(account));
+        when(ownershipGuard.loadOwned(dcRepository, 10L)).thenReturn(account);
 
         UpdateAccountAllocationsCommand command = createCommand("UNKNOWN",
                 item("F001", 50.0),
@@ -218,7 +221,7 @@ class DefinedContributionServiceImplTest {
     @DisplayName("updateAccountAllocations: rejects partial fund list with 400 Bad Request")
     void testUpdateAccountAllocations_MissingFundInRequest() {
         DefinedContributionAccountSnapshot account = createAccountWithThreeFunds(23_000L);
-        when(dcRepository.findById(10L)).thenReturn(Optional.of(account));
+        when(ownershipGuard.loadOwned(dcRepository, 10L)).thenReturn(account);
 
         UpdateAccountAllocationsCommand command = createCommand("F001",
                 item("F001", 60.0),
@@ -236,7 +239,7 @@ class DefinedContributionServiceImplTest {
     @DisplayName("updateAccountAllocations: rejects duplicate fundCode with 400 Bad Request")
     void testUpdateAccountAllocations_DuplicateFundCode() {
         DefinedContributionAccountSnapshot account = createAccountWithThreeFunds(23_000L);
-        when(dcRepository.findById(10L)).thenReturn(Optional.of(account));
+        when(ownershipGuard.loadOwned(dcRepository, 10L)).thenReturn(account);
 
         UpdateAccountAllocationsCommand command = createCommand("F001",
                 item("F001", 50.0),
@@ -252,14 +255,13 @@ class DefinedContributionServiceImplTest {
     @Test
     @DisplayName("updateAccountAllocations: throws 404 when account does not exist")
     void testUpdateAccountAllocations_AccountNotFound() {
-        when(dcRepository.findById(999L)).thenReturn(Optional.empty());
+        when(ownershipGuard.loadOwned(dcRepository, 999L))
+                .thenThrow(new ItemNotFoundException("Resource not found"));
 
         UpdateAccountAllocationsCommand command = createCommand("F001", item("F001", 100.0));
 
         assertThatThrownBy(() -> service.updateAccountAllocations(999L, command))
-                .isInstanceOf(ResponseStatusException.class)
-                .extracting(ex -> ((ResponseStatusException) ex).getStatusCode())
-                .isEqualTo(HttpStatus.NOT_FOUND);
+                .isInstanceOf(ItemNotFoundException.class);
     }
 
     private DefinedContributionAccountSnapshot createAccountWithThreeFunds(long monthlyTotalContribution) {

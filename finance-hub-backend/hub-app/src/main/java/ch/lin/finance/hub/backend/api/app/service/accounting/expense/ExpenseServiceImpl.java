@@ -24,8 +24,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import ch.lin.finance.hub.backend.api.app.repository.accounting.expense.ExpenseItemRepository;
+import ch.lin.finance.hub.backend.api.app.security.OwnershipGuard;
 import ch.lin.finance.hub.backend.api.app.service.accounting.expense.result.ExpenseDetailResult;
 import ch.lin.finance.hub.backend.api.app.service.accounting.expense.result.ExpenseResult;
+import ch.lin.finance.hub.backend.api.common.exception.ItemNotFoundException;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.expense.ExpenseItem;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.shopping.amazon.AmazonItem;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.shopping.rakuten.RakutenItem;
@@ -44,6 +46,7 @@ public class ExpenseServiceImpl implements ExpenseService {
      * Repository for managing {@link ExpenseItem} entities.
      */
     private final ExpenseItemRepository expenseItemRepository;
+    private final OwnershipGuard ownershipGuard;
 
     @jakarta.persistence.PersistenceContext
     private jakarta.persistence.EntityManager entityManager;
@@ -92,36 +95,45 @@ public class ExpenseServiceImpl implements ExpenseService {
     @Transactional(readOnly = true)
     public ExpenseDetailResult getExpenseDetail(String source, String stringId) {
         if (source == null || stringId == null) {
-            return null;
+            throw new IllegalArgumentException("Source and ID must not be null");
         }
 
         Long id;
         try {
             id = Long.valueOf(stringId);
         } catch (NumberFormatException e) {
-            return null;
+            throw new IllegalArgumentException("Invalid expense ID: " + stringId, e);
         }
-
-        ExpenseDetailResult result;
 
         switch (source) {
             case "AMAZON" -> {
                 AmazonItem item = entityManager.find(AmazonItem.class, id);
-                result = ExpenseDetailResult.fromAmazonItem(item);
+                if (item == null || item.getOrder() == null) {
+                    throw new ItemNotFoundException("Expense detail not found");
+                }
+                ownershipGuard.requireReadable(item.getOrder().getOwnerUserId(),
+                        item.getOrder().getPrivacyLevel());
+                return ExpenseDetailResult.fromAmazonItem(item);
             }
             case "RAKUTEN" -> {
                 RakutenItem item = entityManager.find(RakutenItem.class, id);
-                result = ExpenseDetailResult.fromRakutenItem(item);
+                if (item == null || item.getOrder() == null) {
+                    throw new ItemNotFoundException("Expense detail not found");
+                }
+                ownershipGuard.requireReadable(item.getOrder().getOwnerUserId(),
+                        item.getOrder().getPrivacyLevel());
+                return ExpenseDetailResult.fromRakutenItem(item);
             }
             case "SOFMAP" -> {
                 SofmapItem item = entityManager.find(SofmapItem.class, id);
-                result = ExpenseDetailResult.fromSofmapItem(item);
+                if (item == null || item.getOrder() == null) {
+                    throw new ItemNotFoundException("Expense detail not found");
+                }
+                ownershipGuard.requireReadable(item.getOrder().getOwnerUserId(),
+                        item.getOrder().getPrivacyLevel());
+                return ExpenseDetailResult.fromSofmapItem(item);
             }
-            default -> {
-                return null;
-            }
+            default -> throw new IllegalArgumentException("Unsupported expense source: " + source);
         }
-
-        return result;
     }
 }

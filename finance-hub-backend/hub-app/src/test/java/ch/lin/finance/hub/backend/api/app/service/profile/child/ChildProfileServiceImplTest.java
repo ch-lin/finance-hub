@@ -36,6 +36,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import ch.lin.finance.hub.backend.api.app.repository.user.child.ChildProfileRepository;
 import ch.lin.finance.hub.backend.api.app.repository.user.child.education.ChildEducationSettingsRepository;
+import ch.lin.finance.hub.backend.api.app.security.OwnershipGuard;
 import ch.lin.finance.hub.backend.api.app.service.config.education.EducationConfigService;
 import ch.lin.finance.hub.backend.api.app.service.profile.child.command.CreateChildProfileCommand;
 import ch.lin.finance.hub.backend.api.app.service.profile.child.result.ChildProfileResult;
@@ -73,6 +74,9 @@ class ChildProfileServiceImplTest {
     @Mock
     private EducationExpenseCalculator educationExpenseCalculator;
 
+    @Mock
+    private OwnershipGuard ownershipGuard;
+
     @InjectMocks
     private ChildProfileServiceImpl service;
 
@@ -102,15 +106,14 @@ class ChildProfileServiceImplTest {
                 EducationStage.PRIMARY,
                 YearMonth.of(2024, 4),
                 YearMonth.of(2030, 3),
-                BigDecimal.ZERO
-        );
+                BigDecimal.ZERO);
 
         EducationAbsoluteTimeline timeline = EducationAbsoluteTimeline.builder()
                 .events(Collections.emptyList())
                 .stageIntervals(Map.of(EducationStage.PRIMARY, primaryInterval))
                 .build();
 
-        when(childProfileRepository.findById(1L)).thenReturn(Optional.of(childProfile));
+        when(ownershipGuard.loadReadable(childProfileRepository, 1L)).thenReturn(childProfile);
         when(educationConfigService.getDefaultDomainConfig()).thenReturn(defaultConfig);
         when(childEducationSettingsRepository.findByChildProfileId(1L)).thenReturn(Optional.of(settings));
         when(educationProfileResolver.resolve(any(), any())).thenReturn(resolvedProfile);

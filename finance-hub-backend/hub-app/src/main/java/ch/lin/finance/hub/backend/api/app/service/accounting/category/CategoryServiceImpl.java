@@ -19,9 +19,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import ch.lin.finance.hub.backend.api.app.repository.accounting.category.TransactionCategoryRepository;
+import ch.lin.finance.hub.backend.api.app.security.OwnershipGuard;
 import ch.lin.finance.hub.backend.api.app.service.accounting.category.command.SaveCategoryCommand;
 import ch.lin.finance.hub.backend.api.app.service.accounting.category.result.TransactionCategoryResult;
-import ch.lin.finance.hub.backend.api.common.exception.ItemNotFoundException;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.category.TransactionCategory;
 import lombok.RequiredArgsConstructor;
 
@@ -37,6 +37,7 @@ public class CategoryServiceImpl implements CategoryService {
      * Repository for managing {@link TransactionCategory} entities.
      */
     private final TransactionCategoryRepository categoryRepository;
+    private final OwnershipGuard ownershipGuard;
 
     /**
      * {@inheritDoc}
@@ -55,8 +56,7 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     @Transactional(readOnly = true)
     public TransactionCategoryResult getCategoryById(Long id) {
-        TransactionCategory category = categoryRepository.findById(Objects.requireNonNull(id))
-                .orElseThrow(() -> new ItemNotFoundException("Category not found with id: " + id));
+        TransactionCategory category = ownershipGuard.loadReadable(categoryRepository, id);
         return TransactionCategoryResult.fromEntity(category);
     }
 
@@ -68,10 +68,7 @@ public class CategoryServiceImpl implements CategoryService {
     public TransactionCategoryResult createCategory(SaveCategoryCommand command) {
         TransactionCategory parent = null;
         if (command.parentId() != null) {
-            parent = categoryRepository.findById(Objects.requireNonNull(command.parentId()))
-                    .orElseThrow(
-                            () -> new ItemNotFoundException(
-                                    "Parent category not found with id: " + command.parentId()));
+            parent = ownershipGuard.loadReadable(categoryRepository, command.parentId());
         }
 
         TransactionCategory category = new TransactionCategory(
@@ -89,15 +86,11 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     @Transactional
     public TransactionCategoryResult updateCategory(Long id, SaveCategoryCommand command) {
-        TransactionCategory category = categoryRepository.findById(Objects.requireNonNull(id))
-                .orElseThrow(() -> new ItemNotFoundException("Category not found with id: " + id));
+        TransactionCategory category = ownershipGuard.loadOwned(categoryRepository, id);
 
         TransactionCategory parent = null;
         if (command.parentId() != null) {
-            parent = categoryRepository.findById(Objects.requireNonNull(command.parentId()))
-                    .orElseThrow(
-                            () -> new ItemNotFoundException(
-                                    "Parent category not found with id: " + command.parentId()));
+            parent = ownershipGuard.loadReadable(categoryRepository, command.parentId());
         }
 
         category.setName(command.name());
@@ -115,9 +108,7 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     @Transactional
     public void deleteCategory(Long id) {
-        if (!categoryRepository.existsById(Objects.requireNonNull(id))) {
-            throw new ItemNotFoundException("Category not found");
-        }
-        categoryRepository.deleteById(Objects.requireNonNull(id));
+        TransactionCategory category = ownershipGuard.loadOwned(categoryRepository, id);
+        categoryRepository.delete(Objects.requireNonNull(category));
     }
 }

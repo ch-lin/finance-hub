@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import ch.lin.finance.hub.backend.api.app.repository.user.LifeEventRepository;
+import ch.lin.finance.hub.backend.api.app.security.OwnershipGuard;
 import ch.lin.finance.hub.backend.api.app.service.simulation.core.result.LifeEventResult;
 import ch.lin.finance.hub.backend.api.domain.model.event.LifeEvent;
 import ch.lin.finance.hub.backend.api.domain.model.event.LifeEventFrequency;
@@ -28,9 +29,11 @@ import ch.lin.finance.hub.backend.api.domain.model.event.LifeEventFrequency;
 public class LifeEventServiceImpl implements LifeEventService {
 
     private final LifeEventRepository lifeEventRepository;
+    private final OwnershipGuard ownershipGuard;
 
-    public LifeEventServiceImpl(LifeEventRepository lifeEventRepository) {
+    public LifeEventServiceImpl(LifeEventRepository lifeEventRepository, OwnershipGuard ownershipGuard) {
         this.lifeEventRepository = lifeEventRepository;
+        this.ownershipGuard = ownershipGuard;
     }
 
     @Override
@@ -58,6 +61,7 @@ public class LifeEventServiceImpl implements LifeEventService {
     @Override
     @Transactional
     public void deleteEvent(Long id) {
-        lifeEventRepository.deleteById(Objects.requireNonNull(id));
+        LifeEvent event = ownershipGuard.loadOwned(lifeEventRepository, id);
+        lifeEventRepository.delete(Objects.requireNonNull(event));
     }
 }

@@ -28,6 +28,7 @@ import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import ch.lin.finance.hub.backend.api.app.repository.accounting.mortgage.MortgageRecordRepository;
+import ch.lin.finance.hub.backend.api.app.security.OwnershipGuard;
 import ch.lin.finance.hub.backend.api.app.service.accounting.mortgage.command.SaveMortgageRecordCommand;
 import ch.lin.finance.hub.backend.api.app.service.accounting.mortgage.command.SaveMortgageRecordCommand.MortgageEarlyRepaymentCommand;
 import ch.lin.finance.hub.backend.api.app.service.accounting.mortgage.strategy.TaxStrategyFactory;
@@ -45,10 +46,14 @@ class MortgageRecordServiceImplTest {
     @Mock
     private TaxStrategyFactory taxStrategyFactory;
 
+    @Mock
+    private OwnershipGuard ownershipGuard;
+
     @InjectMocks
     private MortgageRecordServiceImpl mortgageRecordService;
 
-    private SaveMortgageRecordCommand createCommand(LocalDate startDate, List<MortgageEarlyRepaymentCommand> earlyRepayments) {
+    private SaveMortgageRecordCommand createCommand(LocalDate startDate,
+            List<MortgageEarlyRepaymentCommand> earlyRepayments) {
         return new SaveMortgageRecordCommand(
                 "ソニー銀行",
                 "1",
@@ -71,8 +76,7 @@ class MortgageRecordServiceImplTest {
                 null,
                 null,
                 true,
-                earlyRepayments
-        );
+                earlyRepayments);
     }
 
     @Test
@@ -82,11 +86,11 @@ class MortgageRecordServiceImplTest {
         LocalDate startDate = LocalDate.now().minusYears(1);
         LocalDate repaymentDate = LocalDate.now().plusMonths(6);
         MortgageEarlyRepaymentCommand er = new MortgageEarlyRepaymentCommand(
-                null, repaymentDate, 1_000_000L, EarlyRepaymentType.REDUCE_PAYMENT, 0L, null
-        );
+                null, repaymentDate, 1_000_000L, EarlyRepaymentType.REDUCE_PAYMENT, 0L, null);
         SaveMortgageRecordCommand command = createCommand(startDate, List.of(er));
 
-        when(repository.save(any(MortgageRecord.class))).thenAnswer(invocation -> invocation.<MortgageRecord>getArgument(0));
+        when(repository.save(any(MortgageRecord.class)))
+                .thenAnswer(invocation -> invocation.<MortgageRecord>getArgument(0));
 
         var result = mortgageRecordService.createMortgage(command);
         assertThat(result).isNotNull();
@@ -101,8 +105,7 @@ class MortgageRecordServiceImplTest {
         LocalDate startDate = LocalDate.now().minusYears(1);
         LocalDate repaymentDate = LocalDate.now().minusDays(1);
         MortgageEarlyRepaymentCommand er = new MortgageEarlyRepaymentCommand(
-                null, repaymentDate, 1_000_000L, EarlyRepaymentType.REDUCE_PAYMENT, 0L, null
-        );
+                null, repaymentDate, 1_000_000L, EarlyRepaymentType.REDUCE_PAYMENT, 0L, null);
         SaveMortgageRecordCommand command = createCommand(startDate, List.of(er));
 
         assertThatThrownBy(() -> mortgageRecordService.createMortgage(command))
@@ -117,8 +120,7 @@ class MortgageRecordServiceImplTest {
         LocalDate startDate = LocalDate.now().plusMonths(6);
         LocalDate repaymentDate = LocalDate.now().plusMonths(1);
         MortgageEarlyRepaymentCommand er = new MortgageEarlyRepaymentCommand(
-                null, repaymentDate, 1_000_000L, EarlyRepaymentType.REDUCE_PAYMENT, 0L, null
-        );
+                null, repaymentDate, 1_000_000L, EarlyRepaymentType.REDUCE_PAYMENT, 0L, null);
         SaveMortgageRecordCommand command = createCommand(startDate, List.of(er));
 
         assertThatThrownBy(() -> mortgageRecordService.createMortgage(command))

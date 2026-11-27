@@ -29,6 +29,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import ch.lin.finance.hub.backend.api.app.repository.accounting.dc.DefinedContributionAccountSnapshotRepository;
 import ch.lin.finance.hub.backend.api.app.repository.accounting.dc.DefinedContributionFundSnapshotRepository;
+import ch.lin.finance.hub.backend.api.app.security.OwnershipGuard;
 import ch.lin.finance.hub.backend.api.app.service.accounting.dc.command.SaveDefinedContributionSnapshotCommand;
 import ch.lin.finance.hub.backend.api.app.service.accounting.dc.command.UpdateAccountAllocationsCommand;
 import ch.lin.finance.hub.backend.api.app.service.accounting.dc.command.UpdateAllocationCommand;
@@ -44,12 +45,15 @@ public class DefinedContributionServiceImpl implements DefinedContributionServic
 
     private final DefinedContributionAccountSnapshotRepository dcRepository;
     private final DefinedContributionFundSnapshotRepository dcFundRepository;
+    private final OwnershipGuard ownershipGuard;
 
     public DefinedContributionServiceImpl(
             DefinedContributionAccountSnapshotRepository dcRepository,
-            DefinedContributionFundSnapshotRepository dcFundRepository) {
+            DefinedContributionFundSnapshotRepository dcFundRepository,
+            OwnershipGuard ownershipGuard) {
         this.dcRepository = dcRepository;
         this.dcFundRepository = dcFundRepository;
+        this.ownershipGuard = ownershipGuard;
     }
 
     @Override
@@ -108,9 +112,7 @@ public class DefinedContributionServiceImpl implements DefinedContributionServic
     @Transactional
     public DefinedContributionFundSnapshotResult updateAllocation(@NonNull Long fundId,
             UpdateAllocationCommand command) {
-        DefinedContributionFundSnapshot fund = dcFundRepository.findById(fundId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "Fund not found"));
+        DefinedContributionFundSnapshot fund = ownershipGuard.loadOwned(dcFundRepository, fundId);
 
         fund.updateExpectedReturnRate(command != null ? command.getExpectedReturnRate() : null);
 
@@ -127,9 +129,7 @@ public class DefinedContributionServiceImpl implements DefinedContributionServic
                     "remainderFundCode and non-empty allocations are required");
         }
 
-        DefinedContributionAccountSnapshot account = dcRepository.findById(accountId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "Account snapshot not found"));
+        DefinedContributionAccountSnapshot account = ownershipGuard.loadOwned(dcRepository, accountId);
 
         List<DefinedContributionFundSnapshot> accountFunds = account.getFunds();
         if (accountFunds == null || accountFunds.isEmpty()) {
@@ -165,10 +165,8 @@ public class DefinedContributionServiceImpl implements DefinedContributionServic
     @Override
     @Transactional
     public void deleteSnapshotById(@NonNull Long id) {
-        if (!dcRepository.existsById(id)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Snapshot not found");
-        }
-        dcRepository.deleteById(id);
+        DefinedContributionAccountSnapshot snapshot = ownershipGuard.loadOwned(dcRepository, id);
+        dcRepository.delete(Objects.requireNonNull(snapshot));
         logger.info("Deleted DC snapshot with ID: {}", id);
     }
 

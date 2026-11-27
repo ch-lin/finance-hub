@@ -13,16 +13,15 @@
 package ch.lin.finance.hub.backend.api.app.service.accounting.salary;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import ch.lin.finance.hub.backend.api.app.repository.accounting.salary.SalaryRecordRepository;
+import ch.lin.finance.hub.backend.api.app.security.OwnershipGuard;
 import ch.lin.finance.hub.backend.api.app.service.accounting.salary.command.SaveSalaryRecordCommand;
 import ch.lin.finance.hub.backend.api.app.service.accounting.salary.result.SalaryRecordResult;
-import ch.lin.finance.hub.backend.api.common.exception.ItemNotFoundException;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.salary.SalaryRecord;
 
 /**
@@ -32,9 +31,11 @@ import ch.lin.finance.hub.backend.api.domain.model.accounting.salary.SalaryRecor
 public class SalaryRecordServiceImpl implements SalaryRecordService {
 
     private final SalaryRecordRepository salaryRecordRepository;
+    private final OwnershipGuard ownershipGuard;
 
-    public SalaryRecordServiceImpl(SalaryRecordRepository salaryRecordRepository) {
+    public SalaryRecordServiceImpl(SalaryRecordRepository salaryRecordRepository, OwnershipGuard ownershipGuard) {
         this.salaryRecordRepository = salaryRecordRepository;
+        this.ownershipGuard = ownershipGuard;
     }
 
     /**
@@ -68,10 +69,7 @@ public class SalaryRecordServiceImpl implements SalaryRecordService {
     @Override
     @Transactional
     public SalaryRecordResult updateRecord(Long id, SaveSalaryRecordCommand command) {
-        SalaryRecord record = salaryRecordRepository
-                .findById(Objects.requireNonNull(id))
-                .orElseThrow(() -> new ItemNotFoundException(
-                        "Salary record not found with id: " + id));
+        SalaryRecord record = ownershipGuard.loadOwned(salaryRecordRepository, id);
 
         if (!record.getPaymentDate().equals(command.getPaymentDate())) {
             throw new IllegalArgumentException(

@@ -37,9 +37,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 import ch.lin.finance.hub.backend.api.app.security.ScopeResolver.ReadableScope;
 import ch.lin.finance.hub.backend.api.app.service.family.FamilyService;
+import ch.lin.finance.hub.backend.api.common.exception.ItemNotFoundException;
 import ch.lin.finance.hub.backend.api.domain.model.base.PrivacyLevel;
 import ch.lin.finance.hub.backend.api.domain.model.profile.child.ChildProfile;
-import jakarta.persistence.EntityNotFoundException;
 
 @ExtendWith(MockitoExtension.class)
 class OwnershipGuardTest {
@@ -90,7 +90,7 @@ class OwnershipGuardTest {
     @Test
     void requireOwner_shouldThrowForOtherUserEvenInSameFamily() {
         assertThatThrownBy(() -> ownershipGuard.requireOwner(recordOwnedBy("user-b", PrivacyLevel.SHARED)))
-                .isInstanceOf(EntityNotFoundException.class);
+                .isInstanceOf(ItemNotFoundException.class);
     }
 
     @Test
@@ -108,7 +108,29 @@ class OwnershipGuardTest {
         when(repository.findById(10L)).thenReturn(Optional.of(record));
 
         assertThatThrownBy(() -> ownershipGuard.loadOwned(repository, 10L))
-                .isInstanceOf(EntityNotFoundException.class);
+                .isInstanceOf(ItemNotFoundException.class);
+    }
+
+    @Test
+    void loadReadable_shouldReturnEntityWhenFamilyShared() {
+        ChildProfile record = recordOwnedBy("user-b", PrivacyLevel.SHARED);
+        when(repository.findById(10L)).thenReturn(Optional.of(record));
+        when(familyService.getFamilyMemberIds("user-a")).thenReturn(List.of("user-a", "user-b"));
+
+        ChildProfile loaded = ownershipGuard.loadReadable(repository, 10L);
+        assertThat(loaded).isSameAs(record);
+    }
+
+    @Test
+    void loadReadable_shouldThrowWhenMissingOrFamilyPrivate() {
+        when(repository.findById(99L)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> ownershipGuard.loadReadable(repository, 99L))
+                .isInstanceOf(ItemNotFoundException.class);
+
+        ChildProfile privateRecord = recordOwnedBy("user-b", PrivacyLevel.PRIVATE);
+        when(repository.findById(10L)).thenReturn(Optional.of(privateRecord));
+        assertThatThrownBy(() -> ownershipGuard.loadReadable(repository, 10L))
+                .isInstanceOf(ItemNotFoundException.class);
     }
 
     @Test
@@ -126,7 +148,7 @@ class OwnershipGuardTest {
     @Test
     void requireReadable_shouldRejectFamilyMemberWhenPrivate() {
         assertThatThrownBy(() -> ownershipGuard.requireReadable("user-b", PrivacyLevel.PRIVATE))
-                .isInstanceOf(EntityNotFoundException.class);
+                .isInstanceOf(ItemNotFoundException.class);
     }
 
     @Test
@@ -134,7 +156,7 @@ class OwnershipGuardTest {
         when(familyService.getFamilyMemberIds("user-a")).thenReturn(List.of("user-a"));
 
         assertThatThrownBy(() -> ownershipGuard.requireReadable("user-c", PrivacyLevel.SHARED))
-                .isInstanceOf(EntityNotFoundException.class);
+                .isInstanceOf(ItemNotFoundException.class);
     }
 
     @Test
@@ -142,7 +164,7 @@ class OwnershipGuardTest {
         when(familyService.getFamilyMemberIds("user-a")).thenThrow(new IllegalStateException("No family"));
 
         assertThatThrownBy(() -> ownershipGuard.requireReadable("user-b", PrivacyLevel.SHARED))
-                .isInstanceOf(EntityNotFoundException.class);
+                .isInstanceOf(ItemNotFoundException.class);
     }
 
     @Test

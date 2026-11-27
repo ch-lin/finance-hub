@@ -13,7 +13,6 @@
 package ch.lin.finance.hub.backend.api.app.service.accounting.pension;
 
 import java.util.List;
-import java.util.Optional;
 
 import org.springframework.lang.NonNull;
 
@@ -24,7 +23,7 @@ public interface PensionRecordService {
 
     List<PensionRecordResult> getAllRecords();
 
-    Optional<PensionRecordResult> getRecordById(@NonNull Long id);
+    PensionRecordResult getRecordById(@NonNull Long id);
 
     PensionRecordResult createOrUpdateRecord(@NonNull CreatePensionRecordCommand command);
 

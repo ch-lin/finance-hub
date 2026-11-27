@@ -22,15 +22,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import ch.lin.finance.hub.backend.api.app.repository.accounting.mortgage.MortgageRecordRepository;
+import ch.lin.finance.hub.backend.api.app.security.OwnershipGuard;
 import ch.lin.finance.hub.backend.api.app.service.accounting.mortgage.command.SaveMortgageRecordCommand;
 import ch.lin.finance.hub.backend.api.app.service.accounting.mortgage.result.MortgageRecordResult;
 import ch.lin.finance.hub.backend.api.app.service.accounting.mortgage.strategy.MortgageTaxDeductionStrategy;
 import ch.lin.finance.hub.backend.api.app.service.accounting.mortgage.strategy.TaxStrategyFactory;
 import ch.lin.finance.hub.backend.api.app.util.SecurityUtil;
-import ch.lin.finance.hub.backend.api.common.exception.ReadOnlyFamilyRecordException;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.mortgage.BonusPayment;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.mortgage.MortgageRecord;
-import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -40,6 +39,7 @@ public class MortgageRecordServiceImpl implements MortgageRecordService {
 
     private final MortgageRecordRepository repository;
     private final TaxStrategyFactory taxStrategyFactory;
+    private final OwnershipGuard ownershipGuard;
 
     @Override
     @Transactional(readOnly = true)
@@ -56,10 +56,6 @@ public class MortgageRecordServiceImpl implements MortgageRecordService {
 
         if (Boolean.TRUE.equals(request.taxDeductionEligible())) {
             String currentUserId = SecurityUtil.getCurrentUserId();
-            if (record.getOwnerUserId() != null && !record.getOwnerUserId().equals(currentUserId)) {
-                throw new ReadOnlyFamilyRecordException(
-                        "Cannot set tax deduction on a family member's mortgage record");
-            }
 
             List<MortgageRecord> otherEligibleMortgages = repository
                     .findByOwnerUserIdAndTaxDeductionEligibleTrue(currentUserId);
@@ -167,8 +163,7 @@ public class MortgageRecordServiceImpl implements MortgageRecordService {
             throw new IllegalArgumentException(
                     "Cannot update mortgage: required fields (totalLoanAmount, interestRate, loanTermMonths) are missing.");
         }
-        MortgageRecord record = repository.findById(Objects.requireNonNull(id))
-                .orElseThrow(() -> new EntityNotFoundException("MortgageRecord not found with id: " + id));
+        MortgageRecord record = ownershipGuard.loadOwned(repository, id);
 
         if (request.bankName() != null) {
             record.setBankName(request.bankName());
@@ -206,6 +201,7 @@ public class MortgageRecordServiceImpl implements MortgageRecordService {
 
     @Override
     public void deleteMortgage(Long id) {
-        repository.deleteById(Objects.requireNonNull(id));
+        MortgageRecord record = ownershipGuard.loadOwned(repository, id);
+        repository.delete(Objects.requireNonNull(record));
     }
 }

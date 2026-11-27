@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import ch.lin.finance.hub.backend.api.app.repository.user.child.ChildProfileRepository;
 import ch.lin.finance.hub.backend.api.app.repository.user.child.education.ChildEducationSettingsRepository;
+import ch.lin.finance.hub.backend.api.app.security.OwnershipGuard;
 import ch.lin.finance.hub.backend.api.app.service.config.education.EducationConfigService;
 import ch.lin.finance.hub.backend.api.app.service.profile.child.command.CreateChildProfileCommand;
 import ch.lin.finance.hub.backend.api.app.service.profile.child.command.UpdateChildProfileCommand;
@@ -36,7 +37,6 @@ import ch.lin.finance.hub.backend.api.app.service.simulation.core.education.Educ
 import ch.lin.finance.hub.backend.api.app.service.simulation.core.education.EducationStage;
 import ch.lin.finance.hub.backend.api.app.service.simulation.core.education.EducationTimelineProjector;
 import ch.lin.finance.hub.backend.api.app.service.simulation.core.education.ResolvedEducationProfile;
-import ch.lin.finance.hub.backend.api.common.exception.ItemNotFoundException;
 import ch.lin.finance.hub.backend.api.domain.model.config.education.EducationConfig;
 import ch.lin.finance.hub.backend.api.domain.model.profile.child.ChildProfile;
 import ch.lin.finance.hub.backend.api.domain.model.profile.child.education.ChildEducationSettings;
@@ -52,6 +52,7 @@ public class ChildProfileServiceImpl implements ChildProfileService {
     private final EducationProfileResolver educationProfileResolver;
     private final EducationTimelineProjector educationTimelineProjector;
     private final EducationExpenseCalculator educationExpenseCalculator;
+    private final OwnershipGuard ownershipGuard;
 
     @Override
     @Transactional(readOnly = true)
@@ -64,12 +65,7 @@ public class ChildProfileServiceImpl implements ChildProfileService {
     @Override
     @Transactional(readOnly = true)
     public ChildProfileResult getChildProfile(Long childId) {
-        return ChildProfileResult.fromEntity(getInternalChildProfile(childId));
-    }
-
-    private ChildProfile getInternalChildProfile(Long childId) {
-        return childProfileRepository.findById(Objects.requireNonNull(childId))
-                .orElseThrow(() -> new ItemNotFoundException("Child profile not found"));
+        return ChildProfileResult.fromEntity(ownershipGuard.loadReadable(childProfileRepository, childId));
     }
 
     @Override
@@ -93,7 +89,7 @@ public class ChildProfileServiceImpl implements ChildProfileService {
     @Override
     @Transactional
     public ChildProfileResult updateChildProfile(Long childId, UpdateChildProfileCommand command) {
-        ChildProfile childProfile = getInternalChildProfile(childId);
+        ChildProfile childProfile = ownershipGuard.loadOwned(childProfileRepository, childId);
 
         if (command.getName() != null) {
             childProfile.setName(command.getName());
@@ -108,13 +104,14 @@ public class ChildProfileServiceImpl implements ChildProfileService {
     @Override
     @Transactional
     public void deleteChildProfile(Long childId) {
-        childProfileRepository.findById(Objects.requireNonNull(childId)).ifPresent(childProfileRepository::delete);
+        ChildProfile childProfile = ownershipGuard.loadOwned(childProfileRepository, childId);
+        childProfileRepository.delete(Objects.requireNonNull(childProfile));
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<EducationProjectionResult> getEducationProjections(Long childId) {
-        ChildProfile child = getInternalChildProfile(childId);
+        ChildProfile child = ownershipGuard.loadReadable(childProfileRepository, childId);
         if (child.getBirthDate() == null) {
             return Collections.emptyList();
         }
@@ -133,8 +130,10 @@ public class ChildProfileServiceImpl implements ChildProfileService {
         }
 
         List<EducationProjectionResult> projection = new ArrayList<>();
-        // Note: yearOffset represents calendar years elapsed since the birth year (simulation pointer),
-        // not exact biological age. It advances simulationYear to look up annual education costs
+        // Note: yearOffset represents calendar years elapsed since the birth year
+        // (simulation pointer),
+        // not exact biological age. It advances simulationYear to look up annual
+        // education costs
         // against the absolute timeline.
         for (int yearOffset = 0; yearOffset <= maxYearOffset; yearOffset++) {
             int simulationYear = child.getBirthDate().getYear() + yearOffset;
@@ -142,7 +141,8 @@ public class ChildProfileServiceImpl implements ChildProfileService {
             long cost = annualCost.setScale(0, RoundingMode.HALF_UP).longValue();
 
             EducationAbsoluteTimeline.StageInterval interval = resolveIntervalForYear(simulationYear, timeline);
-            String phase = interval != null ? formatStageName(interval.stage()) : resolveFallbackPhaseForAge(yearOffset);
+            String phase = interval != null ? formatStageName(interval.stage())
+                    : resolveFallbackPhaseForAge(yearOffset);
             String stageRange = interval != null ? interval.startMonth() + " ~ " + interval.endMonth() : null;
 
             projection.add(EducationProjectionResult.builder()
@@ -156,7 +156,8 @@ public class ChildProfileServiceImpl implements ChildProfileService {
         return projection;
     }
 
-    private EducationAbsoluteTimeline.StageInterval resolveIntervalForYear(int year, EducationAbsoluteTimeline timeline) {
+    private EducationAbsoluteTimeline.StageInterval resolveIntervalForYear(int year,
+            EducationAbsoluteTimeline timeline) {
         if (timeline != null && timeline.getStageIntervals() != null) {
             EducationStage[] stages = EducationStage.values();
             for (int i = stages.length - 1; i >= 0; i--) {

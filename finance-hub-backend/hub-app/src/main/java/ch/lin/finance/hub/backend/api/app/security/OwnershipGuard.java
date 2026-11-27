@@ -21,9 +21,9 @@ import org.springframework.stereotype.Component;
 import ch.lin.finance.hub.backend.api.app.security.ScopeResolver.ReadableScope;
 import ch.lin.finance.hub.backend.api.app.service.family.FamilyService;
 import ch.lin.finance.hub.backend.api.app.util.SecurityUtil;
+import ch.lin.finance.hub.backend.api.common.exception.ItemNotFoundException;
 import ch.lin.finance.hub.backend.api.domain.model.base.MultiUserBaseEntity;
 import ch.lin.finance.hub.backend.api.domain.model.base.PrivacyLevel;
-import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -44,7 +44,7 @@ public class OwnershipGuard {
      */
     public void requireOwner(MultiUserBaseEntity entity) {
         if (entity == null) {
-            throw new EntityNotFoundException("Resource not found");
+            throw new ItemNotFoundException("Resource not found");
         }
         requireOwner(entity.getOwnerUserId());
     }
@@ -57,7 +57,7 @@ public class OwnershipGuard {
     public void requireOwner(String ownerUserId) {
         String currentUserId = SecurityUtil.getCurrentUserId();
         if (!Objects.equals(ownerUserId, currentUserId)) {
-            throw new EntityNotFoundException("Resource not found");
+            throw new ItemNotFoundException("Resource not found");
         }
     }
 
@@ -71,8 +71,23 @@ public class OwnershipGuard {
      */
     public <T extends MultiUserBaseEntity> T loadOwned(JpaRepository<T, Long> repository, Long id) {
         T entity = repository.findById(Objects.requireNonNull(id))
-                .orElseThrow(() -> new EntityNotFoundException("Resource not found with id: " + id));
+                .orElseThrow(() -> new ItemNotFoundException("Resource not found with id: " + id));
         requireOwner(entity);
+        return entity;
+    }
+
+    /**
+     * Loads an entity by ID and verifies read access by the current user.
+     *
+     * @param repository the repository to query
+     * @param id         the entity ID
+     * @param <T>        entity type extending {@link MultiUserBaseEntity}
+     * @return the readable entity
+     */
+    public <T extends MultiUserBaseEntity> T loadReadable(JpaRepository<T, Long> repository, Long id) {
+        T entity = repository.findById(Objects.requireNonNull(id))
+                .orElseThrow(() -> new ItemNotFoundException("Resource not found with id: " + id));
+        requireReadable(entity);
         return entity;
     }
 
@@ -84,7 +99,7 @@ public class OwnershipGuard {
      */
     public void requireReadable(MultiUserBaseEntity entity) {
         if (entity == null) {
-            throw new EntityNotFoundException("Resource not found");
+            throw new ItemNotFoundException("Resource not found");
         }
         requireReadable(entity.getOwnerUserId(), entity.getPrivacyLevel());
     }
@@ -102,10 +117,10 @@ public class OwnershipGuard {
             return;
         }
         if (privacyLevel == PrivacyLevel.PRIVATE) {
-            throw new EntityNotFoundException("Resource not found");
+            throw new ItemNotFoundException("Resource not found");
         }
         if (!isFamilyMember(currentUserId, ownerUserId)) {
-            throw new EntityNotFoundException("Resource not found");
+            throw new ItemNotFoundException("Resource not found");
         }
     }
 

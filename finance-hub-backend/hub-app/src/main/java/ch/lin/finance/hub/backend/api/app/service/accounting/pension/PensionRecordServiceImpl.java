@@ -13,7 +13,7 @@
 package ch.lin.finance.hub.backend.api.app.service.accounting.pension;
 
 import java.util.List;
-import java.util.Optional;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Sort;
@@ -22,10 +22,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import ch.lin.finance.hub.backend.api.app.repository.accounting.pension.PensionRecordRepository;
+import ch.lin.finance.hub.backend.api.app.security.OwnershipGuard;
 import ch.lin.finance.hub.backend.api.app.service.accounting.pension.command.CreatePensionRecordCommand;
 import ch.lin.finance.hub.backend.api.app.service.accounting.pension.result.PensionRecordResult;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.pension.PensionRecord;
-import ch.lin.finance.hub.backend.api.domain.model.base.MultiUserBaseEntity;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -39,6 +39,7 @@ public class PensionRecordServiceImpl implements PensionRecordService {
      * Repository for accessing {@link PensionRecord} data.
      */
     private final PensionRecordRepository pensionRecordRepository;
+    private final OwnershipGuard ownershipGuard;
 
     /**
      * Retrieves all pension records, ordered by record date in descending order.
@@ -57,14 +58,12 @@ public class PensionRecordServiceImpl implements PensionRecordService {
      * Retrieves a pension record by its unique identifier.
      *
      * @param id the unique identifier of the record
-     * @return an {@link Optional} containing the {@link PensionRecordResult} if
-     *         found, or
-     *         empty otherwise
+     * @return the {@link PensionRecordResult} if found and readable
      */
     @Override
     @Transactional(readOnly = true)
-    public Optional<PensionRecordResult> getRecordById(@NonNull Long id) {
-        return pensionRecordRepository.findById(id).map(PensionRecordResult::fromEntity);
+    public PensionRecordResult getRecordById(@NonNull Long id) {
+        return PensionRecordResult.fromEntity(ownershipGuard.loadReadable(pensionRecordRepository, id));
     }
 
     @Override
@@ -87,13 +86,9 @@ public class PensionRecordServiceImpl implements PensionRecordService {
                 command.getTotalPremiumPaid());
 
         if (command.getId() != null) {
-            try {
-                java.lang.reflect.Field idField = MultiUserBaseEntity.class.getSuperclass().getDeclaredField("id");
-                idField.setAccessible(true);
-                idField.set(record, command.getId());
-            } catch (NoSuchFieldException | IllegalAccessException e) {
-                throw new RuntimeException("Failed to set ID for PensionRecord", e);
-            }
+            PensionRecord existing = ownershipGuard.loadOwned(pensionRecordRepository, command.getId());
+            existing.merge(record);
+            return PensionRecordResult.fromEntity(pensionRecordRepository.save(existing));
         }
 
         return PensionRecordResult.fromEntity(pensionRecordRepository.save(record));
@@ -107,6 +102,7 @@ public class PensionRecordServiceImpl implements PensionRecordService {
     @Override
     @Transactional
     public void deleteRecord(@NonNull Long id) {
-        pensionRecordRepository.deleteById(id);
+        PensionRecord record = ownershipGuard.loadOwned(pensionRecordRepository, id);
+        pensionRecordRepository.delete(Objects.requireNonNull(record));
     }
 }

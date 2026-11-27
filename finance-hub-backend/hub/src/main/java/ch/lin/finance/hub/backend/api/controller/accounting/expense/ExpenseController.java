@@ -99,9 +99,6 @@ public class ExpenseController {
         String stringId = parts[1];
 
         ExpenseDetailResult details = expenseService.getExpenseDetail(source, stringId);
-        if (details == null) {
-            return ResponseEntity.notFound().build();
-        }
         return ResponseEntity.ok(expenseMapper.toDetailResponse(details, SecurityUtil.getCurrentUserId()));
     }
 }

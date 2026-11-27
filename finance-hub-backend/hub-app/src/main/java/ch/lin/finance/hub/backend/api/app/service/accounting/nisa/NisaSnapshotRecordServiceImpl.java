@@ -13,13 +13,13 @@
 package ch.lin.finance.hub.backend.api.app.service.accounting.nisa;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import ch.lin.finance.hub.backend.api.app.repository.accounting.nisa.NisaSnapshotRecordRepository;
+import ch.lin.finance.hub.backend.api.app.security.OwnershipGuard;
 import ch.lin.finance.hub.backend.api.app.service.accounting.nisa.command.UpdateNisaReturnRateCommand;
 import ch.lin.finance.hub.backend.api.app.service.accounting.nisa.result.NisaSnapshotRecordResult;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.nisa.NisaSnapshotRecord;
@@ -30,6 +30,7 @@ import lombok.RequiredArgsConstructor;
 public class NisaSnapshotRecordServiceImpl implements NisaSnapshotRecordService {
 
     private final NisaSnapshotRecordRepository nisaRepository;
+    private final OwnershipGuard ownershipGuard;
 
     @Override
     @Transactional(readOnly = true)
@@ -42,9 +43,7 @@ public class NisaSnapshotRecordServiceImpl implements NisaSnapshotRecordService 
     @Override
     @Transactional
     public NisaSnapshotRecordResult updateReturnRate(Long id, UpdateNisaReturnRateCommand command) {
-        NisaSnapshotRecord record = nisaRepository.findById(Objects.requireNonNull(id))
-                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
-                        org.springframework.http.HttpStatus.NOT_FOUND, "Record not found"));
+        NisaSnapshotRecord record = ownershipGuard.loadOwned(nisaRepository, id);
 
         record.updateExpectedReturnRate(command.getExpectedReturnRate());
         return NisaSnapshotRecordResult.fromEntity(nisaRepository.save(record));

@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import ch.lin.finance.hub.backend.api.app.repository.user.CareerEventRepository;
+import ch.lin.finance.hub.backend.api.app.security.OwnershipGuard;
 import ch.lin.finance.hub.backend.api.app.service.simulation.core.result.CareerEventResult;
 import ch.lin.finance.hub.backend.api.domain.model.event.CareerEvent;
 import ch.lin.finance.hub.backend.api.domain.model.event.CareerEventType;
@@ -28,9 +29,11 @@ import ch.lin.finance.hub.backend.api.domain.model.event.CareerEventType;
 public class CareerEventServiceImpl implements CareerEventService {
 
     private final CareerEventRepository careerEventRepository;
+    private final OwnershipGuard ownershipGuard;
 
-    public CareerEventServiceImpl(CareerEventRepository careerEventRepository) {
+    public CareerEventServiceImpl(CareerEventRepository careerEventRepository, OwnershipGuard ownershipGuard) {
         this.careerEventRepository = careerEventRepository;
+        this.ownershipGuard = ownershipGuard;
     }
 
     @Override
@@ -69,6 +72,7 @@ public class CareerEventServiceImpl implements CareerEventService {
     @Override
     @Transactional
     public void deleteEvent(Long id) {
-        careerEventRepository.deleteById(Objects.requireNonNull(id));
+        CareerEvent event = ownershipGuard.loadOwned(careerEventRepository, id);
+        careerEventRepository.delete(Objects.requireNonNull(event));
     }
 }
