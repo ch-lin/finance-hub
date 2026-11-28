@@ -84,8 +84,9 @@ public class NisaSnapshotRecordController {
     @GetMapping("/projection")
     public List<NisaProjectionYearlyResponse> getProjection(
             @RequestParam(defaultValue = "30") int years) {
-        return nisaProjectionService.calculateProjection(years).stream()
-                .map(result -> nisaSnapshotMapper.toMaskedResponse(result, SecurityUtil.getCurrentUserId()))
+        String currentUserId = SecurityUtil.getCurrentUserId();
+        return nisaProjectionService.calculateProjection(currentUserId, years).stream()
+                .map(result -> nisaSnapshotMapper.toMaskedResponse(result, currentUserId))
                 .collect(Collectors.toList());
     }
 

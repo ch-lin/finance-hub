@@ -16,12 +16,17 @@ import java.time.LocalDate;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 import ch.lin.finance.hub.backend.api.domain.model.accounting.company_stock.etrade.ETradeAccountSnapshot;
 
-public interface ETradeAccountSnapshotRepository extends JpaRepository<ETradeAccountSnapshot, String> {
+public interface ETradeAccountSnapshotRepository
+        extends JpaRepository<ETradeAccountSnapshot, Long>, JpaSpecificationExecutor<ETradeAccountSnapshot> {
 
     Optional<ETradeAccountSnapshot> findBySymbolAndRecordDate(String symbol, LocalDate recordDate);
+
+    Optional<ETradeAccountSnapshot> findByOwnerUserIdAndSymbolAndRecordDate(String ownerUserId, String symbol,
+            LocalDate recordDate);
 
     Optional<ETradeAccountSnapshot> findFirstByOrderByRecordDateDesc();
 

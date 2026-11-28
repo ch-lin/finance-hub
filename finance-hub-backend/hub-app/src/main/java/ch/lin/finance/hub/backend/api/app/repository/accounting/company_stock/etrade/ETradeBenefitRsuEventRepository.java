@@ -17,11 +17,17 @@ import ch.lin.finance.hub.backend.api.domain.model.accounting.company_stock.etra
 import java.time.LocalDate;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface ETradeBenefitRsuEventRepository extends JpaRepository<ETradeBenefitRsuEvent, String> {
+public interface ETradeBenefitRsuEventRepository
+        extends JpaRepository<ETradeBenefitRsuEvent, Long>, JpaSpecificationExecutor<ETradeBenefitRsuEvent> {
 
     Optional<ETradeBenefitRsuEvent> findBySymbolAndGrantNumberAndEventDateAndEventTypeAndQuantity(
             String symbol, String grantNumber, LocalDate eventDate, String eventType, Double quantity);
+
+    Optional<ETradeBenefitRsuEvent> findByOwnerUserIdAndSymbolAndGrantNumberAndEventDateAndEventTypeAndQuantity(
+            String ownerUserId, String symbol, String grantNumber, LocalDate eventDate, String eventType,
+            Double quantity);
 }

@@ -33,7 +33,7 @@ class IncomeExpenseCalculatorTest {
     @BeforeEach
     @SuppressWarnings("unused")
     void setUp() {
-        calculator = new IncomeExpenseCalculator(null, null, null, null);
+        calculator = new IncomeExpenseCalculator(null, null, null);
     }
 
     private SimulationContext createContext(int currentYear, int simYear) {
@@ -238,5 +238,17 @@ class IncomeExpenseCalculatorTest {
         long salary = calculator.calculateSalaryForYearUntilMonth(context, List.of(), 1_500_000L, 7, 6);
         assertThat(salary).isZero();
         assertThat(context.getCurrentAnnualSalary()).isZero();
+    }
+
+    @Test
+    void testCalculateSalaryForYear_appliesContextSalaryGrowthRateInFutureYear() {
+        SimulationContext context = createContext(2026, 2027);
+        context.setCurrentAnnualSalary(6_000_000L);
+        context.setSalaryGrowthRate(0.10);
+
+        long salary = calculator.calculateSalaryForYear(context, List.of());
+
+        assertThat(salary).isEqualTo(6_600_000L);
+        assertThat(context.getCurrentAnnualSalary()).isEqualTo(6_600_000L);
     }
 }

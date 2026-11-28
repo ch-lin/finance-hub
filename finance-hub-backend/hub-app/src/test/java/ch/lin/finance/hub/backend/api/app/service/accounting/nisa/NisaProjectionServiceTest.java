@@ -38,6 +38,8 @@ import ch.lin.finance.hub.backend.api.domain.model.config.FinanceHubConfig;
 @ExtendWith(MockitoExtension.class)
 class NisaProjectionServiceTest {
 
+    private static final String USER_ID = "user-1";
+
     @Mock
     private NisaSnapshotRecordRepository nisaRepository;
 
@@ -62,9 +64,9 @@ class NisaProjectionServiceTest {
     @Test
     @DisplayName("Should return empty list if no snapshot records exist")
     void calculateProjection_ReturnsEmpty_WhenNoRecords() {
-        when(nisaRepository.findFirstByOrderByRecordDateDesc()).thenReturn(Optional.empty());
+        when(nisaRepository.findFirstByOwnerUserIdOrderByRecordDateDesc(USER_ID)).thenReturn(Optional.empty());
 
-        List<NisaProjectionYearlyResult> result = projectionService.calculateProjection(30);
+        List<NisaProjectionYearlyResult> result = projectionService.calculateProjection(USER_ID, 30);
         assertTrue(result.isEmpty());
     }
 
@@ -73,16 +75,18 @@ class NisaProjectionServiceTest {
     void calculateProjection_ReturnsCorrectProjections() {
         LocalDate recordDate = LocalDate.of(2025, 1, 1);
 
-        NisaSnapshotRecord r1 = new NisaSnapshotRecord(recordDate, "NISA", "03311187", "Fund1", 10.0, 100.0, 150.0, 100000L,
+        NisaSnapshotRecord r1 = new NisaSnapshotRecord(recordDate, "NISA", "03311187", "Fund1", 10.0, 100.0, 150.0,
+                100000L,
                 120000L, 20000L);
-        NisaSnapshotRecord r2 = new NisaSnapshotRecord(recordDate, "NISA", "03311188", "Fund2", 10.0, 100.0, 150.0, 50000L, 80000L,
+        NisaSnapshotRecord r2 = new NisaSnapshotRecord(recordDate, "NISA", "03311188", "Fund2", 10.0, 100.0, 150.0,
+                50000L, 80000L,
                 30000L);
 
         // Total Principal: 150,000
         // Total Market Value: 200,000
 
-        when(nisaRepository.findFirstByOrderByRecordDateDesc()).thenReturn(Optional.of(r1));
-        when(nisaRepository.findByRecordDate(recordDate)).thenReturn(List.of(r1, r2));
+        when(nisaRepository.findFirstByOwnerUserIdOrderByRecordDateDesc(USER_ID)).thenReturn(Optional.of(r1));
+        when(nisaRepository.findByOwnerUserIdAndRecordDate(USER_ID, recordDate)).thenReturn(List.of(r1, r2));
         when(financeHubConfigService.getResolvedConfig(any())).thenReturn(mockConfig);
 
         // Math.round(initialMarketValue * Math.pow(1.0 + rate, i))
@@ -99,7 +103,7 @@ class NisaProjectionServiceTest {
         org.mockito.Mockito.lenient().when(investmentReturnCalculator.projectInvestmentBalance(80000L, 0L, 0.05, 2))
                 .thenReturn(88200L);
 
-        List<NisaProjectionYearlyResult> result = projectionService.calculateProjection(2);
+        List<NisaProjectionYearlyResult> result = projectionService.calculateProjection(USER_ID, 2);
 
         assertEquals(3, result.size()); // Base year + 2 years = 3 items
 

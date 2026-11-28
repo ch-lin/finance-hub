@@ -92,4 +92,9 @@ public interface RakutenOrderRepository
      *         specified date range.
      */
     List<RakutenOrder> findByOrderDateBetween(LocalDate startDate, LocalDate endDate);
+
+    Optional<RakutenOrder> findByOwnerUserIdAndOrderId(String ownerUserId, String orderId);
+
+    @EntityGraph(attributePaths = { "items" })
+    Optional<RakutenOrder> findWithDetailsByOwnerUserIdAndOrderId(String ownerUserId, String orderId);
 }

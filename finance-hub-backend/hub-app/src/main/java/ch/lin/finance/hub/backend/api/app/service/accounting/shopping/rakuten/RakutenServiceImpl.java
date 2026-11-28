@@ -22,6 +22,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import ch.lin.finance.hub.backend.api.app.repository.accounting.shopping.RakutenOrderRepository;
 import ch.lin.finance.hub.backend.api.app.service.accounting.shopping.rakuten.result.RakutenOrderResult;
+import ch.lin.finance.hub.backend.api.app.util.SecurityUtil;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.shopping.rakuten.RakutenOrder;
 
 /**
@@ -80,8 +81,10 @@ public class RakutenServiceImpl implements RakutenService {
     @Override
     @Transactional
     public RakutenOrderResult saveOrder(RakutenOrder parsedOrder) {
+        String currentUserId = SecurityUtil.getCurrentUserId();
         return transactionTemplate.execute(status -> {
-            Optional<RakutenOrder> existingOpt = rakutenOrderRepository.findByOrderId(parsedOrder.getOrderId());
+            Optional<RakutenOrder> existingOpt = rakutenOrderRepository.findByOwnerUserIdAndOrderId(
+                    currentUserId, parsedOrder.getOrderId());
             RakutenOrder savedOrder;
             if (existingOpt.isPresent()) {
                 RakutenOrder existingOrder = existingOpt.get();
@@ -102,7 +105,8 @@ public class RakutenServiceImpl implements RakutenService {
     @Override
     @Transactional(readOnly = true)
     public Optional<RakutenOrderResult> getOrder(String orderId) {
-        return rakutenOrderRepository.findByOrderId(orderId).map(RakutenOrderResult::fromEntity);
+        return rakutenOrderRepository.findByOwnerUserIdAndOrderId(SecurityUtil.getCurrentUserId(), orderId)
+                .map(RakutenOrderResult::fromEntity);
     }
 
     /**
@@ -111,7 +115,7 @@ public class RakutenServiceImpl implements RakutenService {
     @Override
     @Transactional(readOnly = true)
     public Optional<RakutenOrderResult> getOrderWithDetails(String orderId) {
-        return rakutenOrderRepository.findWithDetailsByOrderId(orderId)
+        return rakutenOrderRepository.findWithDetailsByOwnerUserIdAndOrderId(SecurityUtil.getCurrentUserId(), orderId)
                 .map(RakutenOrderResult::fromEntity);
     }
 }

@@ -75,4 +75,7 @@ public interface ImportJobHistoryRepository extends JpaRepository<ImportJobHisto
      */
     Page<ImportJobHistory> findAllByTransactionSourceOrderByStartTimeDesc(TransactionSource transactionSource,
             Pageable pageable);
+
+    Page<ImportJobHistory> findAllByOwnerUserIdAndTransactionSourceOrderByStartTimeDesc(String ownerUserId,
+            TransactionSource transactionSource, Pageable pageable);
 }

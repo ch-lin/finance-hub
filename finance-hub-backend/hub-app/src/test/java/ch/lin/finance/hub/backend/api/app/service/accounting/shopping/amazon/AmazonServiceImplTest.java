@@ -14,6 +14,7 @@ package ch.lin.finance.hub.backend.api.app.service.accounting.shopping.amazon;
 
 import java.util.Optional;
 
+import org.junit.jupiter.api.AfterEach;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -22,9 +23,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import static org.mockito.ArgumentMatchers.any;
 import org.mockito.Mock;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -37,6 +43,8 @@ import ch.lin.finance.hub.backend.api.domain.model.accounting.shopping.amazon.Am
 @SuppressWarnings({ "unused", "null" })
 class AmazonServiceImplTest {
 
+    private static final String USER_ID = "user-1";
+
     @Mock
     private AmazonOrderRepository amazonOrderRepository;
 
@@ -44,16 +52,32 @@ class AmazonServiceImplTest {
     private TransactionTemplate transactionTemplate;
 
     private AmazonServiceImpl service;
+    private SecurityContext previousSecurityContext;
 
     @BeforeEach
     void setUp() {
+        previousSecurityContext = SecurityContextHolder.getContext();
+        SecurityContext context = SecurityContextHolder.createEmptyContext();
+        Jwt jwt = Jwt.withTokenValue("token").header("alg", "none").claim("sub", USER_ID).build();
+        context.setAuthentication(new JwtAuthenticationToken(jwt));
+        SecurityContextHolder.setContext(context);
+
         service = new AmazonServiceImpl(amazonOrderRepository, transactionTemplate);
 
         // Mock transaction template to just execute the callback
-        org.mockito.Mockito.lenient().doAnswer(invocation -> {
+        lenient().doAnswer(invocation -> {
             TransactionCallback<?> callback = invocation.getArgument(0);
             return callback.doInTransaction(null);
         }).when(transactionTemplate).execute(any());
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (previousSecurityContext != null) {
+            SecurityContextHolder.setContext(previousSecurityContext);
+        } else {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     @Test
@@ -68,7 +92,7 @@ class AmazonServiceImplTest {
         SaveAmazonOrderCommand command = new SaveAmazonOrderCommand("123", null, null, null, null, null, null, null,
                 null, null, null, null, null);
         AmazonOrder order = new AmazonOrder("123", null);
-        when(amazonOrderRepository.findByOrderId("123")).thenReturn(Optional.empty());
+        when(amazonOrderRepository.findByOwnerUserIdAndOrderId(USER_ID, "123")).thenReturn(Optional.empty());
         when(amazonOrderRepository.save(any(AmazonOrder.class))).thenReturn(order);
 
         AmazonOrderResult result = service.saveOrder(command);
@@ -81,7 +105,7 @@ class AmazonServiceImplTest {
         SaveAmazonOrderCommand command = new SaveAmazonOrderCommand("123", null, null, null, null, null, null, null,
                 null, null, null, null, null);
         AmazonOrder existingOrder = new AmazonOrder("123", null);
-        when(amazonOrderRepository.findByOrderId("123")).thenReturn(Optional.of(existingOrder));
+        when(amazonOrderRepository.findByOwnerUserIdAndOrderId(USER_ID, "123")).thenReturn(Optional.of(existingOrder));
         when(amazonOrderRepository.save(existingOrder)).thenReturn(existingOrder);
 
         AmazonOrderResult result = service.saveOrder(command);
@@ -92,44 +116,45 @@ class AmazonServiceImplTest {
     @Test
     void testGetOrder() {
         AmazonOrder order = new AmazonOrder("123", null);
-        when(amazonOrderRepository.findByOrderId("123")).thenReturn(Optional.of(order));
+        when(amazonOrderRepository.findByOwnerUserIdAndOrderId(USER_ID, "123")).thenReturn(Optional.of(order));
 
         Optional<AmazonOrderResult> result = service.getOrder("123");
 
         assertTrue(result.isPresent());
         assertEquals("123", result.get().getOrderId());
-        verify(amazonOrderRepository).findByOrderId("123");
+        verify(amazonOrderRepository).findByOwnerUserIdAndOrderId(USER_ID, "123");
     }
 
     @Test
     void testGetOrder_NotFound() {
-        when(amazonOrderRepository.findByOrderId("999")).thenReturn(Optional.empty());
+        when(amazonOrderRepository.findByOwnerUserIdAndOrderId(USER_ID, "999")).thenReturn(Optional.empty());
 
         Optional<AmazonOrderResult> result = service.getOrder("999");
 
         assertFalse(result.isPresent());
-        verify(amazonOrderRepository).findByOrderId("999");
+        verify(amazonOrderRepository).findByOwnerUserIdAndOrderId(USER_ID, "999");
     }
 
     @Test
     void testGetOrderWithDetails_Success() {
         AmazonOrder order = new AmazonOrder("123", null);
-        when(amazonOrderRepository.findWithDetailsByOrderId("123")).thenReturn(Optional.of(order));
+        when(amazonOrderRepository.findWithDetailsByOwnerUserIdAndOrderId(USER_ID, "123"))
+                .thenReturn(Optional.of(order));
 
         Optional<AmazonOrderResult> result = service.getOrderWithDetails("123");
 
         assertTrue(result.isPresent());
         assertEquals("123", result.get().getOrderId());
-        verify(amazonOrderRepository).findWithDetailsByOrderId("123");
+        verify(amazonOrderRepository).findWithDetailsByOwnerUserIdAndOrderId(USER_ID, "123");
     }
 
     @Test
     void testGetOrderWithDetails_NotFound() {
-        when(amazonOrderRepository.findWithDetailsByOrderId("999")).thenReturn(Optional.empty());
+        when(amazonOrderRepository.findWithDetailsByOwnerUserIdAndOrderId(USER_ID, "999")).thenReturn(Optional.empty());
 
         Optional<AmazonOrderResult> result = service.getOrderWithDetails("999");
 
         assertFalse(result.isPresent());
-        verify(amazonOrderRepository).findWithDetailsByOrderId("999");
+        verify(amazonOrderRepository).findWithDetailsByOwnerUserIdAndOrderId(USER_ID, "999");
     }
 }

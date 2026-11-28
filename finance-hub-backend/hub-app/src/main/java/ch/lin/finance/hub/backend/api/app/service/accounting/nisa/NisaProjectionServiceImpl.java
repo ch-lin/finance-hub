@@ -55,15 +55,16 @@ public class NisaProjectionServiceImpl implements NisaProjectionService {
     }
 
     @Override
-    public List<NisaProjectionYearlyResult> calculateProjection(int yearsToProject) {
-        Optional<NisaSnapshotRecord> latestRecordOpt = nisaRepository.findFirstByOrderByRecordDateDesc();
+    public List<NisaProjectionYearlyResult> calculateProjection(String userId, int yearsToProject) {
+        Optional<NisaSnapshotRecord> latestRecordOpt = nisaRepository
+                .findFirstByOwnerUserIdOrderByRecordDateDesc(userId);
         if (latestRecordOpt.isEmpty()) {
-            logger.warn("No NISA snapshot records found. Returning empty projection.");
+            logger.warn("No NISA snapshot records found for user {}. Returning empty projection.", userId);
             return List.of();
         }
 
         LocalDate latestDate = latestRecordOpt.get().getRecordDate();
-        List<NisaSnapshotRecord> latestSnapshots = nisaRepository.findByRecordDate(latestDate);
+        List<NisaSnapshotRecord> latestSnapshots = nisaRepository.findByOwnerUserIdAndRecordDate(userId, latestDate);
 
         long totalPrincipal = latestSnapshots.stream()
                 .mapToLong(record -> {

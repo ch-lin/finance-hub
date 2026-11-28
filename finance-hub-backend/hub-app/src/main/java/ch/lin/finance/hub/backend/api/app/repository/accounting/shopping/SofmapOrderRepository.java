@@ -43,4 +43,9 @@ public interface SofmapOrderRepository extends JpaRepository<SofmapOrder, Long> 
      */
     @EntityGraph(attributePaths = { "items", "payments", "shipments" })
     Optional<SofmapOrder> findWithDetailsByOrderId(String orderId);
+
+    Optional<SofmapOrder> findByOwnerUserIdAndOrderId(String ownerUserId, String orderId);
+
+    @EntityGraph(attributePaths = { "items" })
+    Optional<SofmapOrder> findWithDetailsByOwnerUserIdAndOrderId(String ownerUserId, String orderId);
 }

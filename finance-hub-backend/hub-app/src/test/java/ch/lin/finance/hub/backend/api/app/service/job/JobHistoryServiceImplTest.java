@@ -12,8 +12,10 @@
  */
 package ch.lin.finance.hub.backend.api.app.service.job;
 
+import java.time.OffsetDateTime;
 import java.util.Map;
 
+import org.junit.jupiter.api.AfterEach;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +29,10 @@ import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
 import ch.lin.finance.hub.backend.api.app.repository.job.ImportJobHistoryRepository;
 import ch.lin.finance.hub.backend.api.app.service.job.result.JobHistoryResult;
@@ -38,6 +44,8 @@ import ch.lin.finance.hub.backend.api.domain.model.history.TriggerType;
 @SuppressWarnings({ "null", "unused" })
 class JobHistoryServiceImplTest {
 
+    private static final String USER_ID = "user-1";
+
     @Mock
     private ImportJobHistoryRepository importJobHistoryRepository;
 
@@ -45,10 +53,26 @@ class JobHistoryServiceImplTest {
     private JobHistoryServiceImpl jobHistoryService;
 
     private ImportJobHistory jobHistory;
+    private SecurityContext previousSecurityContext;
 
     @BeforeEach
     void setUp() {
-        jobHistory = new ImportJobHistory(TransactionSource.AMAZON, TriggerType.MANUAL, java.time.OffsetDateTime.now());
+        previousSecurityContext = SecurityContextHolder.getContext();
+        SecurityContext context = SecurityContextHolder.createEmptyContext();
+        Jwt jwt = Jwt.withTokenValue("token").header("alg", "none").claim("sub", USER_ID).build();
+        context.setAuthentication(new JwtAuthenticationToken(jwt));
+        SecurityContextHolder.setContext(context);
+
+        jobHistory = new ImportJobHistory(TransactionSource.AMAZON, TriggerType.MANUAL, OffsetDateTime.now());
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (previousSecurityContext != null) {
+            SecurityContextHolder.setContext(previousSecurityContext);
+        } else {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     @Test
@@ -108,8 +132,8 @@ class JobHistoryServiceImplTest {
     @Test
     void testGetHistoryByTransactionSource() {
         Pageable pageable = Pageable.unpaged();
-        when(importJobHistoryRepository.findAllByTransactionSourceOrderByStartTimeDesc(TransactionSource.AMAZON,
-                pageable))
+        when(importJobHistoryRepository.findAllByOwnerUserIdAndTransactionSourceOrderByStartTimeDesc(
+                USER_ID, TransactionSource.AMAZON, pageable))
                 .thenReturn(Page.empty());
 
         Page<JobHistoryResult> result;
@@ -117,8 +141,8 @@ class JobHistoryServiceImplTest {
                 pageable);
 
         assertNotNull(result);
-        verify(importJobHistoryRepository).findAllByTransactionSourceOrderByStartTimeDesc(TransactionSource.AMAZON,
-                pageable);
+        verify(importJobHistoryRepository).findAllByOwnerUserIdAndTransactionSourceOrderByStartTimeDesc(
+                USER_ID, TransactionSource.AMAZON, pageable);
     }
 
     @Test

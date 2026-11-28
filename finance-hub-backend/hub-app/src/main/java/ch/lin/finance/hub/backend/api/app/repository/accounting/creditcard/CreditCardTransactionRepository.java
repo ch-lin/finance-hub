@@ -21,10 +21,12 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import ch.lin.finance.hub.backend.api.domain.model.accounting.creditcard.CreditCardTransaction;
+import ch.lin.finance.hub.backend.api.domain.model.base.PrivacyLevel;
 
 /**
  * Spring Data JPA repository for {@link CreditCardTransaction} entities.
@@ -97,4 +99,25 @@ public interface CreditCardTransactionRepository
      */
     @Query("SELECT DISTINCT t.cardName FROM CreditCardTransaction t")
     List<String> findDistinctCardNames();
+
+    List<CreditCardTransaction> findByOwnerUserIdAndTransactionDateBetween(String ownerUserId, LocalDate startDate,
+            LocalDate endDate);
+
+    @Query("SELECT c FROM CreditCardTransaction c "
+            + "WHERE c.ownerUserId = :ownerUserId "
+            + "AND (UPPER(c.storeName) LIKE '%AMAZON%' OR UPPER(c.memo) LIKE '%AMAZON%') "
+            + "AND NOT EXISTS (SELECT 1 FROM TransactionLink t WHERE t.creditCardTransaction.id = c.id)")
+    Page<CreditCardTransaction> findUnmatchedAmazonTransactionsByOwnerUserId(
+            @Param("ownerUserId") String ownerUserId, Pageable pageable);
+
+    @Query("SELECT DISTINCT t.cardName FROM CreditCardTransaction t WHERE t.ownerUserId = :ownerUserId")
+    List<String> findDistinctCardNamesByOwnerUserId(@Param("ownerUserId") String ownerUserId);
+
+    @Query("SELECT DISTINCT t.cardName FROM CreditCardTransaction t "
+            + "WHERE t.ownerUserId IN :familyMemberIds "
+            + "AND (t.ownerUserId = :currentUserId OR t.privacyLevel <> :excludedPrivacy)")
+    List<String> findDistinctCardNamesForFamily(
+            @Param("currentUserId") String currentUserId,
+            @Param("familyMemberIds") List<String> familyMemberIds,
+            @Param("excludedPrivacy") PrivacyLevel excludedPrivacy);
 }

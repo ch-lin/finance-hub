@@ -23,10 +23,11 @@ public interface NisaProjectionService {
 
     /**
      * Calculates the projected value of the NISA portfolio over the specified
-     * number of years.
+     * number of years for the given user.
      *
+     * @param userId         The target user's ID.
      * @param yearsToProject The number of years into the future to project.
      * @return A list of yearly projections.
      */
-    List<NisaProjectionYearlyResult> calculateProjection(int yearsToProject);
+    List<NisaProjectionYearlyResult> calculateProjection(String userId, int yearsToProject);
 }

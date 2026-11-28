@@ -99,7 +99,7 @@ public class DefinedContributionController {
             file.transferTo(Objects.requireNonNull(tempFile));
 
             // By default, dryRun is false to save it immediately for the upload endpoint.
-            FileProcessingResult result = dcJobService.processFile(tempFile, false, null);
+            FileProcessingResult result = dcJobService.processFile(tempFile, false, SecurityUtil.getCurrentUserId());
 
             if (!tempFile.delete()) {
                 logger.warn("Could not delete temporary file: {}", tempFile.getAbsolutePath());

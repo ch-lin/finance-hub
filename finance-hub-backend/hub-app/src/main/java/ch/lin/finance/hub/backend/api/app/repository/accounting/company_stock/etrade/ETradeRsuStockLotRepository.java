@@ -15,12 +15,18 @@ package ch.lin.finance.hub.backend.api.app.repository.accounting.company_stock.e
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
 import ch.lin.finance.hub.backend.api.domain.model.accounting.company_stock.etrade.ETradeRsuStockLot;
 
 @Repository
-public interface ETradeRsuStockLotRepository extends JpaRepository<ETradeRsuStockLot, String> {
+public interface ETradeRsuStockLotRepository
+        extends JpaRepository<ETradeRsuStockLot, Long>, JpaSpecificationExecutor<ETradeRsuStockLot> {
 
-    Optional<ETradeRsuStockLot> findBySymbolAndGrantNumberAndVestPeriod(String symbol, String grantNumber, Integer vestPeriod);
+    Optional<ETradeRsuStockLot> findBySymbolAndGrantNumberAndVestPeriod(String symbol, String grantNumber,
+            Integer vestPeriod);
+
+    Optional<ETradeRsuStockLot> findByOwnerUserIdAndSymbolAndGrantNumberAndVestPeriod(String ownerUserId,
+            String symbol, String grantNumber, Integer vestPeriod);
 }

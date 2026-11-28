@@ -106,7 +106,8 @@ class CompanyStockControllerTest {
                 "<html></html>".getBytes());
         FileProcessingResult result = new FileProcessingResult("Success", false, null);
 
-        when(((FileProcessingStrategy) companyStockService).processFile(any(), eq(false), eq(null))).thenReturn(result);
+        when(((FileProcessingStrategy) companyStockService).processFile(any(), eq(false), eq(currentUserId)))
+                .thenReturn(result);
 
         mockMvc.perform(multipart("/assets/company-stock/etrade/upload")
                 .file(file)
@@ -243,7 +244,7 @@ class CompanyStockControllerTest {
         MockMultipartFile file = new MockMultipartFile("file", "holdings.html", MediaType.TEXT_HTML_VALUE,
                 "<html></html>".getBytes());
 
-        when(((FileProcessingStrategy) companyStockService).processFile(any(), eq(false), eq(null)))
+        when(((FileProcessingStrategy) companyStockService).processFile(any(), eq(false), eq(currentUserId)))
                 .thenThrow(new RuntimeException("Test exception"));
 
         mockMvc.perform(multipart("/assets/company-stock/etrade/upload")
@@ -259,7 +260,8 @@ class CompanyStockControllerTest {
                 "<html></html>".getBytes());
         FileProcessingResult result = new FileProcessingResult("Success", false, null);
 
-        when(((FileProcessingStrategy) companyStockService).processFile(any(), eq(false), eq(null))).thenReturn(result);
+        when(((FileProcessingStrategy) companyStockService).processFile(any(), eq(false), eq(currentUserId)))
+                .thenReturn(result);
 
         Path realPath = Files.createTempFile("dummy", ".html");
         File dummyFile = new java.io.File(realPath.toString()) {

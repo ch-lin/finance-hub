@@ -16,12 +16,17 @@ import java.time.LocalDate;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
 import ch.lin.finance.hub.backend.api.domain.model.accounting.company_stock.etrade.ETradeEsppStockLot;
 
 @Repository
-public interface ETradeEsppStockLotRepository extends JpaRepository<ETradeEsppStockLot, String> {
+public interface ETradeEsppStockLotRepository
+        extends JpaRepository<ETradeEsppStockLot, Long>, JpaSpecificationExecutor<ETradeEsppStockLot> {
 
     Optional<ETradeEsppStockLot> findBySymbolAndPurchaseDate(String symbol, LocalDate purchaseDate);
+
+    Optional<ETradeEsppStockLot> findByOwnerUserIdAndSymbolAndPurchaseDate(String ownerUserId, String symbol,
+            LocalDate purchaseDate);
 }

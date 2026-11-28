@@ -20,6 +20,7 @@ import java.util.List;
 import org.hibernate.annotations.ColumnDefault;
 
 import ch.lin.finance.hub.backend.api.domain.model.accounting.shopping.BaseOrder;
+import ch.lin.finance.hub.backend.api.domain.model.base.MultiUserBaseEntity;
 import ch.lin.platform.domain.model.BaseEntity;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -43,7 +44,7 @@ import lombok.Setter;
         @Index(name = SofmapOrder.ID_INDEX, columnList = BaseEntity.ID_COLUMN),
         @Index(name = SofmapOrder.ORDER_DATE_INDEX, columnList = BaseOrder.ORDER_DATE_COLUMN)
 }, uniqueConstraints = {
-        @UniqueConstraint(columnNames = BaseOrder.ORDER_ID_COLUMN)
+        @UniqueConstraint(columnNames = { MultiUserBaseEntity.OWNER_USER_ID_COLUMN, BaseOrder.ORDER_ID_COLUMN })
 })
 @Getter
 public class SofmapOrder extends BaseOrder<SofmapItem, SofmapPayment> {

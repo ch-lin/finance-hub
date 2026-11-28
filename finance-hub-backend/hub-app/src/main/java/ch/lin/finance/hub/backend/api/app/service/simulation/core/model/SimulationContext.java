@@ -46,6 +46,7 @@ public class SimulationContext implements Cloneable {
     private long currentAnnualSalary;
     private long currentAnnualBonus;
     private int currentBonusPaymentCount;
+    private double salaryGrowthRate;
     private long baselineMonthlyExpenses;
     private double healthInsuranceRate;
     private double pensionRate;
@@ -152,8 +153,10 @@ public class SimulationContext implements Cloneable {
             }
         }
 
-        // childEducationCostCache is guaranteed to be an immutable map (Collections.unmodifiableMap),
-        // so sharing the reference across cloned contexts during simulation loops is both thread-safe and memory-efficient.
+        // childEducationCostCache is guaranteed to be an immutable map
+        // (Collections.unmodifiableMap),
+        // so sharing the reference across cloned contexts during simulation loops is
+        // both thread-safe and memory-efficient.
         copy.childEducationCostCache = this.childEducationCostCache;
 
         // Entities like profile and config are read-only during the loop, shallow copy

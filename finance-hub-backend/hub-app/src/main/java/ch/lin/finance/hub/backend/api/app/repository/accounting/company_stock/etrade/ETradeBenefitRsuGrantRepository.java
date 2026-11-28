@@ -16,10 +16,15 @@ import ch.lin.finance.hub.backend.api.domain.model.accounting.company_stock.etra
 
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface ETradeBenefitRsuGrantRepository extends JpaRepository<ETradeBenefitRsuGrant, String> {
+public interface ETradeBenefitRsuGrantRepository
+        extends JpaRepository<ETradeBenefitRsuGrant, Long>, JpaSpecificationExecutor<ETradeBenefitRsuGrant> {
 
     Optional<ETradeBenefitRsuGrant> findBySymbolAndGrantNumber(String symbol, String grantNumber);
+
+    Optional<ETradeBenefitRsuGrant> findByOwnerUserIdAndSymbolAndGrantNumber(String ownerUserId, String symbol,
+            String grantNumber);
 }

@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import ch.lin.finance.hub.backend.api.app.repository.job.ImportJobHistoryRepository;
 import ch.lin.finance.hub.backend.api.app.service.job.result.JobHistoryResult;
+import ch.lin.finance.hub.backend.api.app.util.SecurityUtil;
 import ch.lin.finance.hub.backend.api.domain.model.config.scheduler.TransactionSource;
 import ch.lin.finance.hub.backend.api.domain.model.history.ImportJobFailedFile;
 import ch.lin.finance.hub.backend.api.domain.model.history.ImportJobHistory;
@@ -111,9 +112,12 @@ public class JobHistoryServiceImpl implements JobHistoryService {
      * {@inheritDoc}
      */
     @Override
+    @Transactional(readOnly = true)
     public Page<JobHistoryResult> getHistoryByTransactionSource(TransactionSource transactionSource,
             Pageable pageable) {
-        return importJobHistoryRepository.findAllByTransactionSourceOrderByStartTimeDesc(transactionSource, pageable)
+        return importJobHistoryRepository
+                .findAllByOwnerUserIdAndTransactionSourceOrderByStartTimeDesc(SecurityUtil.getCurrentUserId(),
+                        transactionSource, pageable)
                 .map(JobHistoryResult::fromEntity);
     }
 }

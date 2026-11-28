@@ -28,6 +28,9 @@ public class MonetaryValue {
     private CurrencyCode currency;
 
     public static MonetaryValue fromEntity(MonetaryAmount money) {
+        if (money == null) {
+            return null;
+        }
         return new MonetaryValue(money.getAmount(), money.getCurrency());
     }
 

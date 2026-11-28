@@ -32,6 +32,8 @@ import org.springframework.web.multipart.MultipartFile;
 import ch.lin.finance.hub.backend.api.app.service.accounting.company_stock.CompanyStockService;
 import ch.lin.finance.hub.backend.api.app.service.accounting.company_stock.command.SaveETradeExtensionCommand;
 import ch.lin.finance.hub.backend.api.app.service.job.file.FileProcessingResult;
+import ch.lin.finance.hub.backend.api.app.service.job.file.FileProcessingStrategy;
+import ch.lin.finance.hub.backend.api.app.util.SecurityUtil;
 import ch.lin.finance.hub.backend.api.controller.accounting.company_stock.dto.CompanyStockMapper;
 import ch.lin.finance.hub.backend.api.controller.accounting.company_stock.dto.request.ETradeExtensionRequest;
 import ch.lin.finance.hub.backend.api.controller.accounting.company_stock.dto.response.CompanyStockResponse;
@@ -86,8 +88,8 @@ public class CompanyStockController {
             // necessary, but actually processFile is part of DataImportJobService.
             // To keep it simple, we cast it to FileProcessingStrategy if needed, or we just
             // leave it if it compiles.
-            FileProcessingResult result = ((ch.lin.finance.hub.backend.api.app.service.job.file.FileProcessingStrategy) companyStockService)
-                    .processFile(tempFile, dryRun, null);
+            FileProcessingResult result = ((FileProcessingStrategy) companyStockService)
+                    .processFile(tempFile, dryRun, SecurityUtil.getCurrentUserId());
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             logger.error("Failed to process E-Trade file", e);
@@ -135,7 +137,7 @@ public class CompanyStockController {
     @GetMapping("/etrade")
     public ResponseEntity<List<CompanyStockResponse.Snapshot>> getAllSnapshots() {
         return ResponseEntity.ok(mapper.toSnapshotResponseList(companyStockService.getAllSnapshots(),
-                ch.lin.finance.hub.backend.api.app.util.SecurityUtil.getCurrentUserId()));
+                SecurityUtil.getCurrentUserId()));
     }
 
     /**
@@ -147,7 +149,7 @@ public class CompanyStockController {
     @GetMapping("/etrade/lots")
     public ResponseEntity<List<CompanyStockResponse.StockLot>> getStockLots() {
         return ResponseEntity.ok(mapper.toStockLotResponseList(companyStockService.getStockLots(),
-                ch.lin.finance.hub.backend.api.app.util.SecurityUtil.getCurrentUserId()));
+                SecurityUtil.getCurrentUserId()));
     }
 
     /**
@@ -159,7 +161,7 @@ public class CompanyStockController {
     @GetMapping("/etrade/cash-transactions")
     public ResponseEntity<List<CompanyStockResponse.CashTransaction>> getCashTransactions() {
         return ResponseEntity.ok(mapper.toCashTransactionResponseList(companyStockService.getCashTransactions(),
-                ch.lin.finance.hub.backend.api.app.util.SecurityUtil.getCurrentUserId()));
+                SecurityUtil.getCurrentUserId()));
     }
 
     /**
@@ -171,7 +173,7 @@ public class CompanyStockController {
     @GetMapping("/etrade/espp")
     public ResponseEntity<List<CompanyStockResponse.EsppPurchase>> getEsppPurchases() {
         return ResponseEntity.ok(mapper.toEsppPurchaseResponseList(companyStockService.getEsppPurchases(),
-                ch.lin.finance.hub.backend.api.app.util.SecurityUtil.getCurrentUserId()));
+                SecurityUtil.getCurrentUserId()));
     }
 
     /**
@@ -183,7 +185,7 @@ public class CompanyStockController {
     @GetMapping("/etrade/rsu-grants")
     public ResponseEntity<List<CompanyStockResponse.RsuGrant>> getRsuGrants() {
         return ResponseEntity.ok(mapper.toRsuGrantResponseList(companyStockService.getRsuGrants(),
-                ch.lin.finance.hub.backend.api.app.util.SecurityUtil.getCurrentUserId()));
+                SecurityUtil.getCurrentUserId()));
     }
 
     /**
@@ -195,7 +197,7 @@ public class CompanyStockController {
     @GetMapping("/etrade/rsu-events")
     public ResponseEntity<List<CompanyStockResponse.RsuEvent>> getRsuEvents() {
         return ResponseEntity.ok(mapper.toRsuEventResponseList(companyStockService.getRsuEvents(),
-                ch.lin.finance.hub.backend.api.app.util.SecurityUtil.getCurrentUserId()));
+                SecurityUtil.getCurrentUserId()));
     }
 
     /**
@@ -207,6 +209,6 @@ public class CompanyStockController {
     @GetMapping("/etrade/rsu-vest-schedules")
     public ResponseEntity<List<CompanyStockResponse.RsuVestSchedule>> getRsuVestSchedules() {
         return ResponseEntity.ok(mapper.toRsuVestScheduleResponseList(companyStockService.getRsuVestSchedules(),
-                ch.lin.finance.hub.backend.api.app.util.SecurityUtil.getCurrentUserId()));
+                SecurityUtil.getCurrentUserId()));
     }
 }

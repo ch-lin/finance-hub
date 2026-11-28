@@ -16,6 +16,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -23,13 +24,16 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import ch.lin.finance.hub.backend.api.app.repository.accounting.creditcard.CreditCardTransactionRepository;
 import ch.lin.finance.hub.backend.api.app.repository.accounting.reconciliation.TransactionLinkRepository;
 import ch.lin.finance.hub.backend.api.app.repository.accounting.shopping.AmazonOrderRepository;
+import ch.lin.finance.hub.backend.api.app.security.OwnershipGuard;
 import ch.lin.finance.hub.backend.api.app.service.accounting.creditcard.result.CreditCardTransactionResult;
 import ch.lin.finance.hub.backend.api.app.service.accounting.reconciliation.result.ReconciliationAmazonOrderResult;
 import ch.lin.finance.hub.backend.api.app.service.accounting.reconciliation.result.SuggestedMatchResult;
+import ch.lin.finance.hub.backend.api.app.util.SecurityUtil;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.creditcard.CreditCardTransaction;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.reconciliation.TransactionLink;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.shopping.amazon.AmazonOrder;
@@ -50,37 +54,44 @@ public class ReconciliationServiceImpl implements ReconciliationService {
     private final CreditCardTransactionRepository creditCardRepository;
     private final AmazonOrderRepository amazonOrderRepository;
     private final TransactionLinkRepository transactionLinkRepository;
+    private final OwnershipGuard ownershipGuard;
 
     /**
-     * Constructs the service with required repositories.
+     * Constructs the service with required repositories and authorization guard.
      *
      * @param creditCardRepository      Repository for credit card transactions.
      * @param amazonOrderRepository     Repository for Amazon orders.
      * @param transactionLinkRepository Repository for storing successful links.
+     * @param ownershipGuard            Guard enforcing ownership verification.
      */
     public ReconciliationServiceImpl(CreditCardTransactionRepository creditCardRepository,
             AmazonOrderRepository amazonOrderRepository,
-            TransactionLinkRepository transactionLinkRepository) {
+            TransactionLinkRepository transactionLinkRepository,
+            OwnershipGuard ownershipGuard) {
         this.creditCardRepository = creditCardRepository;
         this.amazonOrderRepository = amazonOrderRepository;
         this.transactionLinkRepository = transactionLinkRepository;
+        this.ownershipGuard = ownershipGuard;
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
+    @Transactional(readOnly = true)
     public Page<CreditCardTransactionResult> getUnmatchedAmazonTransactions(Pageable pageable) {
-        return creditCardRepository.findUnmatchedAmazonTransactions(pageable).map(CreditCardTransactionResult::fromEntity);
+        return creditCardRepository
+                .findUnmatchedAmazonTransactionsByOwnerUserId(SecurityUtil.getCurrentUserId(), pageable)
+                .map(CreditCardTransactionResult::fromEntity);
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
+    @Transactional(readOnly = true)
     public List<SuggestedMatchResult> getSuggestions(@NonNull Long transactionId) {
-        CreditCardTransaction transaction = creditCardRepository.findById(transactionId)
-                .orElseThrow(() -> new IllegalArgumentException("Transaction not found with ID: " + transactionId));
+        CreditCardTransaction transaction = ownershipGuard.loadOwned(creditCardRepository, transactionId);
         return findFuzzyMatches(transaction);
     }
 
@@ -88,7 +99,10 @@ public class ReconciliationServiceImpl implements ReconciliationService {
      * {@inheritDoc}
      */
     @Override
+    @Transactional(readOnly = true)
     public List<SuggestedMatchResult> findFuzzyMatches(CreditCardTransaction transaction) {
+        String ownerUserId = Objects.requireNonNull(transaction.getOwnerUserId(),
+                "Transaction ownerUserId must not be null");
         // Using absolute value assuming credit card expenses might be recorded as
         // negatives
         BigDecimal targetAmount = BigDecimal.valueOf(Math.abs(transaction.getAmount()));
@@ -97,7 +111,8 @@ public class ReconciliationServiceImpl implements ReconciliationService {
         // Phase 1: Check the normal shipping window (e.g., 14 days before the
         // transaction)
         LocalDate normalMinDate = maxDate.minusDays(14);
-        List<AmazonOrder> normalMatches = amazonOrderRepository.findByOrderDateBetween(normalMinDate, maxDate).stream()
+        List<AmazonOrder> normalMatches = amazonOrderRepository
+                .findByOwnerUserIdAndOrderDateBetween(ownerUserId, normalMinDate, maxDate).stream()
                 .filter(order -> order.getUnreconciledBalance().compareTo(targetAmount) == 0)
                 .filter(order -> transactionLinkRepository.findByAmazonOrderId(order.getId()).isEmpty())
                 .collect(Collectors.toList());
@@ -113,7 +128,8 @@ public class ReconciliationServiceImpl implements ReconciliationService {
         // Search an extended window without overlapping the previously searched dates.
         LocalDate preOrderMinDate = maxDate.minusMonths(24);
         List<AmazonOrder> preOrderMatches = amazonOrderRepository
-                .findByOrderDateBetween(preOrderMinDate, normalMinDate.minusDays(1)).stream()
+                .findByOwnerUserIdAndOrderDateBetween(ownerUserId, preOrderMinDate, normalMinDate.minusDays(1))
+                .stream()
                 .filter(order -> order.getUnreconciledBalance().compareTo(targetAmount) == 0)
                 .filter(order -> transactionLinkRepository.findByAmazonOrderId(order.getId()).isEmpty())
                 .collect(Collectors.toList());
@@ -158,7 +174,11 @@ public class ReconciliationServiceImpl implements ReconciliationService {
      * {@inheritDoc}
      */
     @Override
+    @Transactional
     public void linkTransaction(@NonNull Long creditCardTransactionId, @NonNull Long amazonOrderId) {
+        CreditCardTransaction transaction = ownershipGuard.loadOwned(creditCardRepository, creditCardTransactionId);
+        AmazonOrder order = ownershipGuard.loadOwned(amazonOrderRepository, amazonOrderId);
+
         // Prevent duplicate linking
         if (!transactionLinkRepository.findByCreditCardTransactionId(creditCardTransactionId).isEmpty()) {
             throw new IllegalStateException(
@@ -169,13 +189,6 @@ public class ReconciliationServiceImpl implements ReconciliationService {
                     "Amazon order with ID " + amazonOrderId + " is already linked.");
         }
 
-        CreditCardTransaction transaction = creditCardRepository.findById(creditCardTransactionId)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "Credit card transaction not found with ID: " + creditCardTransactionId));
-
-        AmazonOrder order = amazonOrderRepository.findById(amazonOrderId)
-                .orElseThrow(() -> new IllegalArgumentException("Amazon order not found with ID: " + amazonOrderId));
-
         TransactionLink link = new TransactionLink(transaction, order);
         transactionLinkRepository.save(link);
     }
@@ -184,9 +197,11 @@ public class ReconciliationServiceImpl implements ReconciliationService {
      * {@inheritDoc}
      */
     @Override
-    public List<ReconciliationAmazonOrderResult> searchUnmatchedAmazonOrders(String orderId, BigDecimal minAmount, BigDecimal maxAmount) {
-        return amazonOrderRepository.searchUnmatchedOrders(orderId, minAmount, maxAmount).stream()
-                .map(ReconciliationAmazonOrderResult::fromEntity)
-                .collect(Collectors.toList());
+    @Transactional(readOnly = true)
+    public List<ReconciliationAmazonOrderResult> searchUnmatchedAmazonOrders(String orderId, BigDecimal minAmount,
+            BigDecimal maxAmount) {
+        return amazonOrderRepository
+                .searchUnmatchedOrdersByOwnerUserId(SecurityUtil.getCurrentUserId(), orderId, minAmount, maxAmount)
+                .stream().map(ReconciliationAmazonOrderResult::fromEntity).collect(Collectors.toList());
     }
 }

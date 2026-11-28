@@ -16,8 +16,8 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 
+import org.junit.jupiter.api.AfterEach;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -36,12 +36,20 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import ch.lin.finance.hub.backend.api.app.repository.accounting.creditcard.CreditCardTransactionRepository;
 import ch.lin.finance.hub.backend.api.app.repository.accounting.reconciliation.TransactionLinkRepository;
 import ch.lin.finance.hub.backend.api.app.repository.accounting.shopping.AmazonOrderRepository;
+import ch.lin.finance.hub.backend.api.app.security.OwnershipGuard;
 import ch.lin.finance.hub.backend.api.app.service.accounting.creditcard.result.CreditCardTransactionResult;
+import ch.lin.finance.hub.backend.api.app.service.accounting.reconciliation.result.ReconciliationAmazonOrderResult;
 import ch.lin.finance.hub.backend.api.app.service.accounting.reconciliation.result.SuggestedMatchResult;
+import ch.lin.finance.hub.backend.api.common.exception.ItemNotFoundException;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.creditcard.CreditCardTransaction;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.reconciliation.TransactionLink;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.shopping.amazon.AmazonOrder;
@@ -49,6 +57,8 @@ import ch.lin.finance.hub.backend.api.domain.model.accounting.shopping.amazon.Am
 @ExtendWith(MockitoExtension.class)
 @SuppressWarnings({ "null", "unused" })
 class ReconciliationServiceImplTest {
+
+    private static final String USER_ID = "user-1";
 
     @Mock
     private CreditCardTransactionRepository creditCardRepository;
@@ -59,9 +69,13 @@ class ReconciliationServiceImplTest {
     @Mock
     private TransactionLinkRepository transactionLinkRepository;
 
+    @Mock
+    private OwnershipGuard ownershipGuard;
+
     @InjectMocks
     private ReconciliationServiceImpl reconciliationService;
 
+    private SecurityContext previousSecurityContext;
     private CreditCardTransaction transaction;
     private AmazonOrder order1;
     private AmazonOrder order2;
@@ -69,48 +83,68 @@ class ReconciliationServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        previousSecurityContext = SecurityContextHolder.getContext();
+        SecurityContext context = SecurityContextHolder.createEmptyContext();
+        Jwt jwt = Jwt.withTokenValue("token").header("alg", "none").claim("sub", USER_ID).build();
+        context.setAuthentication(new JwtAuthenticationToken(jwt));
+        SecurityContextHolder.setContext(context);
+
         transactionDate = LocalDate.of(2025, 6, 15);
         transaction = new CreditCardTransaction("TestCard", transactionDate, "TestStore", -100);
-        org.springframework.test.util.ReflectionTestUtils.setField(transaction, "id", 1L);
+        ReflectionTestUtils.setField(transaction, "id", 1L);
+        transaction.setOwnerUserId(USER_ID);
 
         order1 = new AmazonOrder("order-1", transactionDate);
-        org.springframework.test.util.ReflectionTestUtils.setField(order1, "id", 10L);
+        ReflectionTestUtils.setField(order1, "id", 10L);
+        order1.setOwnerUserId(USER_ID);
         order1.setBilledAmount(new BigDecimal("100.0"));
 
         order2 = new AmazonOrder("order-2", transactionDate);
-        org.springframework.test.util.ReflectionTestUtils.setField(order2, "id", 20L);
+        ReflectionTestUtils.setField(order2, "id", 20L);
+        order2.setOwnerUserId(USER_ID);
         order2.setBilledAmount(new BigDecimal("100.0"));
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (previousSecurityContext != null) {
+            SecurityContextHolder.setContext(previousSecurityContext);
+        } else {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     @Test
     void testGetUnmatchedAmazonTransactions() {
         Pageable pageable = PageRequest.of(0, 10);
         Page<CreditCardTransaction> page = new PageImpl<>(List.of(transaction));
-        when(creditCardRepository.findUnmatchedAmazonTransactions(pageable)).thenReturn(page);
+        when(creditCardRepository.findUnmatchedAmazonTransactionsByOwnerUserId(USER_ID, pageable)).thenReturn(page);
 
         Page<CreditCardTransactionResult> result = reconciliationService.getUnmatchedAmazonTransactions(pageable);
 
         assertNotNull(result);
         assertEquals(1, result.getTotalElements());
-        verify(creditCardRepository).findUnmatchedAmazonTransactions(pageable);
+        verify(creditCardRepository).findUnmatchedAmazonTransactionsByOwnerUserId(USER_ID, pageable);
     }
 
     @Test
     void testGetSuggestions_TransactionNotFound() {
-        when(creditCardRepository.findById(1L)).thenReturn(Optional.empty());
+        when(ownershipGuard.loadOwned(creditCardRepository, 1L))
+                .thenThrow(new ItemNotFoundException("Resource not found with id: 1"));
 
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+        ItemNotFoundException exception = assertThrows(ItemNotFoundException.class, () -> {
             reconciliationService.getSuggestions(1L);
         });
-        assertTrue(exception.getMessage().contains("Transaction not found with ID: 1"));
+        assertTrue(exception.getMessage().contains("Resource not found with id: 1"));
     }
 
     @Test
     void testGetSuggestions_Success() {
-        when(creditCardRepository.findById(1L)).thenReturn(Optional.of(transaction));
-        when(amazonOrderRepository.findByOrderDateBetween(transactionDate.minusDays(14), transactionDate))
+        when(ownershipGuard.loadOwned(creditCardRepository, 1L)).thenReturn(transaction);
+        when(amazonOrderRepository.findByOwnerUserIdAndOrderDateBetween(USER_ID, transactionDate.minusDays(14),
+                transactionDate))
                 .thenReturn(List.of(order1));
-        org.springframework.test.util.ReflectionTestUtils.setField(order1, "orderDate", transactionDate.minusDays(5));
+        ReflectionTestUtils.setField(order1, "orderDate", transactionDate.minusDays(5));
 
         List<SuggestedMatchResult> suggestions = reconciliationService.getSuggestions(1L);
 
@@ -123,8 +157,9 @@ class ReconciliationServiceImplTest {
 
     @Test
     void testFindFuzzyMatches_NormalMatch_Single() {
-        org.springframework.test.util.ReflectionTestUtils.setField(order1, "orderDate", transactionDate.minusDays(5));
-        when(amazonOrderRepository.findByOrderDateBetween(transactionDate.minusDays(14), transactionDate))
+        ReflectionTestUtils.setField(order1, "orderDate", transactionDate.minusDays(5));
+        when(amazonOrderRepository.findByOwnerUserIdAndOrderDateBetween(USER_ID, transactionDate.minusDays(14),
+                transactionDate))
                 .thenReturn(List.of(order1));
 
         List<SuggestedMatchResult> matches = reconciliationService.findFuzzyMatches(transaction);
@@ -138,15 +173,16 @@ class ReconciliationServiceImplTest {
     @Test
     void testFindFuzzyMatches_NormalMatch_MultipleWithSorting() {
         // order1 is closer by shipping date
-        org.springframework.test.util.ReflectionTestUtils.setField(order1, "orderDate", transactionDate.minusDays(10));
+        ReflectionTestUtils.setField(order1, "orderDate", transactionDate.minusDays(10));
         order1.setShippingDate(transactionDate.minusDays(2));
 
         // order2 is closer by order date, but shipping date takes precedence if
         // available
-        org.springframework.test.util.ReflectionTestUtils.setField(order2, "orderDate", transactionDate.minusDays(1));
+        ReflectionTestUtils.setField(order2, "orderDate", transactionDate.minusDays(1));
         order2.setShippingDate(transactionDate.minusDays(5));
 
-        when(amazonOrderRepository.findByOrderDateBetween(transactionDate.minusDays(14), transactionDate))
+        when(amazonOrderRepository.findByOwnerUserIdAndOrderDateBetween(USER_ID, transactionDate.minusDays(14),
+                transactionDate))
                 .thenReturn(List.of(order1, order2));
 
         List<SuggestedMatchResult> matches = reconciliationService.findFuzzyMatches(transaction);
@@ -163,13 +199,12 @@ class ReconciliationServiceImplTest {
 
     @Test
     void testFindFuzzyMatches_PreOrderMatch() {
-        when(amazonOrderRepository.findByOrderDateBetween(transactionDate.minusDays(14), transactionDate))
+        when(amazonOrderRepository.findByOwnerUserIdAndOrderDateBetween(USER_ID, transactionDate.minusDays(14),
+                transactionDate))
                 .thenReturn(Collections.emptyList());
 
-        org.springframework.test.util.ReflectionTestUtils.setField(order1, "orderDate", transactionDate.minusDays(30)); // In
-                                                                                                                        // pre-order
-                                                                                                                        // window
-        when(amazonOrderRepository.findByOrderDateBetween(transactionDate.minusMonths(24),
+        ReflectionTestUtils.setField(order1, "orderDate", transactionDate.minusDays(30)); // In pre-order window
+        when(amazonOrderRepository.findByOwnerUserIdAndOrderDateBetween(USER_ID, transactionDate.minusMonths(24),
                 transactionDate.minusDays(15)))
                 .thenReturn(List.of(order1));
 
@@ -183,9 +218,10 @@ class ReconciliationServiceImplTest {
 
     @Test
     void testFindFuzzyMatches_NoMatch() {
-        when(amazonOrderRepository.findByOrderDateBetween(transactionDate.minusDays(14), transactionDate))
+        when(amazonOrderRepository.findByOwnerUserIdAndOrderDateBetween(USER_ID, transactionDate.minusDays(14),
+                transactionDate))
                 .thenReturn(Collections.emptyList());
-        when(amazonOrderRepository.findByOrderDateBetween(transactionDate.minusMonths(24),
+        when(amazonOrderRepository.findByOwnerUserIdAndOrderDateBetween(USER_ID, transactionDate.minusMonths(24),
                 transactionDate.minusDays(15)))
                 .thenReturn(Collections.emptyList());
 
@@ -196,12 +232,13 @@ class ReconciliationServiceImplTest {
 
     @Test
     void testFindFuzzyMatches_NormalMatch_AlreadyLinkedOrderExcluded() {
-        org.springframework.test.util.ReflectionTestUtils.setField(order1, "orderDate", transactionDate.minusDays(5));
-        when(amazonOrderRepository.findByOrderDateBetween(transactionDate.minusDays(14), transactionDate))
+        ReflectionTestUtils.setField(order1, "orderDate", transactionDate.minusDays(5));
+        when(amazonOrderRepository.findByOwnerUserIdAndOrderDateBetween(USER_ID, transactionDate.minusDays(14),
+                transactionDate))
                 .thenReturn(List.of(order1));
         TransactionLink link = new TransactionLink(transaction, order1);
         when(transactionLinkRepository.findByAmazonOrderId(10L)).thenReturn(List.of(link));
-        when(amazonOrderRepository.findByOrderDateBetween(transactionDate.minusMonths(24),
+        when(amazonOrderRepository.findByOwnerUserIdAndOrderDateBetween(USER_ID, transactionDate.minusMonths(24),
                 transactionDate.minusDays(15)))
                 .thenReturn(Collections.emptyList());
 
@@ -212,6 +249,8 @@ class ReconciliationServiceImplTest {
 
     @Test
     void testLinkTransaction_AlreadyLinked() {
+        when(ownershipGuard.loadOwned(creditCardRepository, 1L)).thenReturn(transaction);
+        when(ownershipGuard.loadOwned(amazonOrderRepository, 10L)).thenReturn(order1);
         TransactionLink link = new TransactionLink(transaction, order1);
         when(transactionLinkRepository.findByCreditCardTransactionId(1L))
                 .thenReturn(List.of(link));
@@ -224,6 +263,8 @@ class ReconciliationServiceImplTest {
 
     @Test
     void testLinkTransaction_AmazonOrderAlreadyLinked() {
+        when(ownershipGuard.loadOwned(creditCardRepository, 1L)).thenReturn(transaction);
+        when(ownershipGuard.loadOwned(amazonOrderRepository, 10L)).thenReturn(order1);
         when(transactionLinkRepository.findByCreditCardTransactionId(1L)).thenReturn(Collections.emptyList());
         TransactionLink link = new TransactionLink(transaction, order1);
         when(transactionLinkRepository.findByAmazonOrderId(10L)).thenReturn(List.of(link));
@@ -236,36 +277,51 @@ class ReconciliationServiceImplTest {
 
     @Test
     void testLinkTransaction_CreditCardNotFound() {
-        when(transactionLinkRepository.findByCreditCardTransactionId(1L)).thenReturn(Collections.emptyList());
-        when(creditCardRepository.findById(1L)).thenReturn(Optional.empty());
+        when(ownershipGuard.loadOwned(creditCardRepository, 1L))
+                .thenThrow(new ItemNotFoundException("Resource not found with id: 1"));
 
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+        ItemNotFoundException exception = assertThrows(ItemNotFoundException.class, () -> {
             reconciliationService.linkTransaction(1L, 10L);
         });
-        assertTrue(exception.getMessage().contains("Credit card transaction not found"));
+        assertTrue(exception.getMessage().contains("Resource not found with id: 1"));
     }
 
     @Test
     void testLinkTransaction_AmazonOrderNotFound() {
-        when(transactionLinkRepository.findByCreditCardTransactionId(1L)).thenReturn(Collections.emptyList());
-        when(creditCardRepository.findById(1L)).thenReturn(Optional.of(transaction));
-        when(amazonOrderRepository.findById(10L)).thenReturn(Optional.empty());
+        when(ownershipGuard.loadOwned(creditCardRepository, 1L)).thenReturn(transaction);
+        when(ownershipGuard.loadOwned(amazonOrderRepository, 10L))
+                .thenThrow(new ItemNotFoundException("Resource not found with id: 10"));
 
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+        ItemNotFoundException exception = assertThrows(ItemNotFoundException.class, () -> {
             reconciliationService.linkTransaction(1L, 10L);
         });
-        assertTrue(exception.getMessage().contains("Amazon order not found"));
+        assertTrue(exception.getMessage().contains("Resource not found with id: 10"));
     }
 
     @Test
     void testLinkTransaction_Success() {
+        when(ownershipGuard.loadOwned(creditCardRepository, 1L)).thenReturn(transaction);
+        when(ownershipGuard.loadOwned(amazonOrderRepository, 10L)).thenReturn(order1);
         when(transactionLinkRepository.findByCreditCardTransactionId(1L)).thenReturn(Collections.emptyList());
-        when(creditCardRepository.findById(1L)).thenReturn(Optional.of(transaction));
-        when(amazonOrderRepository.findById(10L)).thenReturn(Optional.of(order1));
 
         reconciliationService.linkTransaction(1L, 10L);
 
         verify(transactionLinkRepository).save(any(TransactionLink.class));
+    }
+
+    @Test
+    void testSearchUnmatchedAmazonOrders() {
+        when(amazonOrderRepository.searchUnmatchedOrdersByOwnerUserId(USER_ID, "order", BigDecimal.TEN,
+                BigDecimal.valueOf(500)))
+                .thenReturn(List.of(order1));
+
+        List<ReconciliationAmazonOrderResult> result = reconciliationService.searchUnmatchedAmazonOrders(
+                "order", BigDecimal.TEN, BigDecimal.valueOf(500));
+
+        assertEquals(1, result.size());
+        assertEquals(order1.getId(), result.get(0).getId());
+        verify(amazonOrderRepository).searchUnmatchedOrdersByOwnerUserId(USER_ID, "order", BigDecimal.TEN,
+                BigDecimal.valueOf(500));
     }
 
     @Test
@@ -294,14 +350,15 @@ class ReconciliationServiceImplTest {
 
     @Test
     void testFindFuzzyMatches_NormalMatch_AmountMismatch() {
-        org.springframework.test.util.ReflectionTestUtils.setField(order1, "orderDate", transactionDate.minusDays(5));
+        ReflectionTestUtils.setField(order1, "orderDate", transactionDate.minusDays(5));
         order1.setBilledAmount(new BigDecimal("50.0")); // Different amount
 
-        when(amazonOrderRepository.findByOrderDateBetween(transactionDate.minusDays(14), transactionDate))
+        when(amazonOrderRepository.findByOwnerUserIdAndOrderDateBetween(USER_ID, transactionDate.minusDays(14),
+                transactionDate))
                 .thenReturn(List.of(order1));
 
         // In this case, phase 1 finds nothing. Phase 2 also finds nothing.
-        when(amazonOrderRepository.findByOrderDateBetween(transactionDate.minusMonths(24),
+        when(amazonOrderRepository.findByOwnerUserIdAndOrderDateBetween(USER_ID, transactionDate.minusMonths(24),
                 transactionDate.minusDays(15)))
                 .thenReturn(Collections.emptyList());
 
@@ -312,15 +369,14 @@ class ReconciliationServiceImplTest {
 
     @Test
     void testFindFuzzyMatches_PreOrderMatch_AmountMismatch() {
-        when(amazonOrderRepository.findByOrderDateBetween(transactionDate.minusDays(14), transactionDate))
+        when(amazonOrderRepository.findByOwnerUserIdAndOrderDateBetween(USER_ID, transactionDate.minusDays(14),
+                transactionDate))
                 .thenReturn(Collections.emptyList());
 
-        org.springframework.test.util.ReflectionTestUtils.setField(order1, "orderDate", transactionDate.minusDays(30)); // In
-                                                                                                                        // pre-order
-                                                                                                                        // window
+        ReflectionTestUtils.setField(order1, "orderDate", transactionDate.minusDays(30)); // In pre-order window
         order1.setBilledAmount(new BigDecimal("50.0")); // Different amount
 
-        when(amazonOrderRepository.findByOrderDateBetween(transactionDate.minusMonths(24),
+        when(amazonOrderRepository.findByOwnerUserIdAndOrderDateBetween(USER_ID, transactionDate.minusMonths(24),
                 transactionDate.minusDays(15)))
                 .thenReturn(List.of(order1));
 
@@ -331,13 +387,14 @@ class ReconciliationServiceImplTest {
 
     @Test
     void testFindFuzzyMatches_PreOrderMatch_Multiple() {
-        when(amazonOrderRepository.findByOrderDateBetween(transactionDate.minusDays(14), transactionDate))
+        when(amazonOrderRepository.findByOwnerUserIdAndOrderDateBetween(USER_ID, transactionDate.minusDays(14),
+                transactionDate))
                 .thenReturn(Collections.emptyList());
 
-        org.springframework.test.util.ReflectionTestUtils.setField(order1, "orderDate", transactionDate.minusDays(30));
-        org.springframework.test.util.ReflectionTestUtils.setField(order2, "orderDate", transactionDate.minusDays(40));
+        ReflectionTestUtils.setField(order1, "orderDate", transactionDate.minusDays(30));
+        ReflectionTestUtils.setField(order2, "orderDate", transactionDate.minusDays(40));
 
-        when(amazonOrderRepository.findByOrderDateBetween(transactionDate.minusMonths(24),
+        when(amazonOrderRepository.findByOwnerUserIdAndOrderDateBetween(USER_ID, transactionDate.minusMonths(24),
                 transactionDate.minusDays(15)))
                 .thenReturn(List.of(order1, order2));
 
@@ -353,14 +410,15 @@ class ReconciliationServiceImplTest {
     @Test
     void testFindFuzzyMatches_NormalMatch_NullShippingDateFallback() {
         // order1 has no shipping date, should fallback to orderDate
-        org.springframework.test.util.ReflectionTestUtils.setField(order1, "orderDate", transactionDate.minusDays(3));
+        ReflectionTestUtils.setField(order1, "orderDate", transactionDate.minusDays(3));
         order1.setShippingDate(null);
 
         // order2 has shipping date
-        org.springframework.test.util.ReflectionTestUtils.setField(order2, "orderDate", transactionDate.minusDays(10));
+        ReflectionTestUtils.setField(order2, "orderDate", transactionDate.minusDays(10));
         order2.setShippingDate(transactionDate.minusDays(5));
 
-        when(amazonOrderRepository.findByOrderDateBetween(transactionDate.minusDays(14), transactionDate))
+        when(amazonOrderRepository.findByOwnerUserIdAndOrderDateBetween(USER_ID, transactionDate.minusDays(14),
+                transactionDate))
                 .thenReturn(List.of(order1, order2));
 
         List<SuggestedMatchResult> matches = reconciliationService.findFuzzyMatches(transaction);

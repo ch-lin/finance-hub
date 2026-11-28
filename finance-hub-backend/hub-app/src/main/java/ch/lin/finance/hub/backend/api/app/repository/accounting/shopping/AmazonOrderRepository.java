@@ -114,7 +114,7 @@ public interface AmazonOrderRepository extends JpaRepository<AmazonOrder, Long>,
      * @return A list of {@link AmazonOrder} entities that fall within the specified
      *         date range.
      */
-    @EntityGraph(attributePaths = {"items", "payments"})
+    @EntityGraph(attributePaths = { "items", "payments" })
     List<AmazonOrder> findByOrderDateBetween(LocalDate startDate, LocalDate endDate);
 
     /**
@@ -133,6 +133,27 @@ public interface AmazonOrderRepository extends JpaRepository<AmazonOrder, Long>,
             "AND (:maxAmount IS NULL OR (o.billedAmount - o.reconciledAmount) <= :maxAmount) " +
             "ORDER BY o.orderDate DESC")
     List<AmazonOrder> searchUnmatchedOrders(
+            @Param("orderId") String orderId,
+            @Param("minAmount") BigDecimal minAmount,
+            @Param("maxAmount") BigDecimal maxAmount);
+
+    Optional<AmazonOrder> findByOwnerUserIdAndOrderId(String ownerUserId, String orderId);
+
+    @EntityGraph(attributePaths = { "items" })
+    Optional<AmazonOrder> findWithDetailsByOwnerUserIdAndOrderId(String ownerUserId, String orderId);
+
+    List<AmazonOrder> findByOwnerUserIdAndOrderDateBetween(String ownerUserId, LocalDate startDate, LocalDate endDate);
+
+    @Query("SELECT o FROM AmazonOrder o "
+            + "WHERE o.ownerUserId = :ownerUserId "
+            + "AND (o.billedAmount - o.reconciledAmount) > 0 "
+            + "AND NOT EXISTS (SELECT 1 FROM TransactionLink t WHERE t.amazonOrder.id = o.id) "
+            + "AND (:orderId IS NULL OR o.orderId LIKE concat('%', :orderId, '%')) "
+            + "AND (:minAmount IS NULL OR (o.billedAmount - o.reconciledAmount) >= :minAmount) "
+            + "AND (:maxAmount IS NULL OR (o.billedAmount - o.reconciledAmount) <= :maxAmount) "
+            + "ORDER BY o.orderDate DESC")
+    List<AmazonOrder> searchUnmatchedOrdersByOwnerUserId(
+            @Param("ownerUserId") String ownerUserId,
             @Param("orderId") String orderId,
             @Param("minAmount") BigDecimal minAmount,
             @Param("maxAmount") BigDecimal maxAmount);

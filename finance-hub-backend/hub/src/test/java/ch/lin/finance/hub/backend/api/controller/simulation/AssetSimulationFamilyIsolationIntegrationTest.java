@@ -14,6 +14,7 @@ package ch.lin.finance.hub.backend.api.controller.simulation;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 
@@ -41,6 +42,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import ch.lin.finance.hub.backend.api.app.repository.accounting.bank.BankStatementRepository;
+import ch.lin.finance.hub.backend.api.app.repository.accounting.bank.BankTransactionRepository;
+import ch.lin.finance.hub.backend.api.app.repository.accounting.category.TransactionCategoryRepository;
+import ch.lin.finance.hub.backend.api.app.repository.accounting.creditcard.CreditCardStatementRepository;
+import ch.lin.finance.hub.backend.api.app.repository.accounting.creditcard.CreditCardTransactionRepository;
 import ch.lin.finance.hub.backend.api.app.repository.accounting.dc.DefinedContributionUserSettingsRepository;
 import ch.lin.finance.hub.backend.api.app.repository.accounting.mortgage.MortgageRecordRepository;
 import ch.lin.finance.hub.backend.api.app.repository.accounting.nisa.NisaUserSettingsRepository;
@@ -50,6 +56,11 @@ import ch.lin.finance.hub.backend.api.app.repository.family.FamilyMemberReposito
 import ch.lin.finance.hub.backend.api.app.repository.user.UserProfileRepository;
 import ch.lin.finance.hub.backend.api.app.service.family.FamilyService;
 import ch.lin.finance.hub.backend.api.app.service.family.result.FamilyGroupResult;
+import ch.lin.finance.hub.backend.api.domain.model.accounting.bank.BankStatement;
+import ch.lin.finance.hub.backend.api.domain.model.accounting.bank.BankTransaction;
+import ch.lin.finance.hub.backend.api.domain.model.accounting.category.TransactionCategory;
+import ch.lin.finance.hub.backend.api.domain.model.accounting.creditcard.CreditCardStatement;
+import ch.lin.finance.hub.backend.api.domain.model.accounting.creditcard.CreditCardTransaction;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.dc.DefinedContributionUserSettings;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.mortgage.InterestRateType;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.mortgage.MortgageRecord;
@@ -106,6 +117,21 @@ class AssetSimulationFamilyIsolationIntegrationTest {
     @Autowired
     private SalaryUserSettingsRepository salaryUserSettingsRepository;
 
+    @Autowired
+    private BankStatementRepository bankStatementRepository;
+
+    @Autowired
+    private BankTransactionRepository bankTransactionRepository;
+
+    @Autowired
+    private CreditCardStatementRepository creditCardStatementRepository;
+
+    @Autowired
+    private CreditCardTransactionRepository creditCardTransactionRepository;
+
+    @Autowired
+    private TransactionCategoryRepository transactionCategoryRepository;
+
     private SecurityContext previousSecurityContext;
 
     @BeforeEach
@@ -119,12 +145,12 @@ class AssetSimulationFamilyIsolationIntegrationTest {
         FamilyGroupResult group = familyService.createFamilyGroup(USER_A, "Test Family");
         familyService.joinFamily(USER_B, group.getInviteCode());
 
-        // Seed User A's profile & assets
-        seedUserData(USER_A, 10_000_000L, 50_000L, 10_000L, 1_000_000L);
+        // Seed User B FIRST with much larger assets, expenses, cash balance, and a 50%
+        // salary growth rate (must NOT leak into User A's simulation)
+        seedUserData(USER_B, 80_000_000L, 200_000L, 50_000L, 9_000_000L, 0.50, 800_000, 50_000_000, 400_000);
 
-        // Seed User B's profile & much larger assets (must NOT leak into User A's
-        // simulation)
-        seedUserData(USER_B, 80_000_000L, 200_000L, 50_000L, 9_000_000L);
+        // Seed User A's profile & assets
+        seedUserData(USER_A, 10_000_000L, 50_000L, 10_000L, 1_000_000L, 0.0, 100_000, 500_000, 50_000);
 
         SecurityContextHolder.clearContext();
     }
@@ -140,6 +166,11 @@ class AssetSimulationFamilyIsolationIntegrationTest {
     }
 
     private void cleanUp() {
+        bankTransactionRepository.deleteAll();
+        bankStatementRepository.deleteAll();
+        creditCardTransactionRepository.deleteAll();
+        creditCardStatementRepository.deleteAll();
+        transactionCategoryRepository.deleteAll();
         mortgageRecordRepository.deleteAll();
         nisaUserSettingsRepository.deleteAll();
         dcUserSettingsRepository.deleteAll();
@@ -165,7 +196,8 @@ class AssetSimulationFamilyIsolationIntegrationTest {
     }
 
     private void seedUserData(String userId, long mortgageBalance, long nisaMonthlyGrowth,
-            long idecoMonthly, long expectedBonus) {
+            long idecoMonthly, long expectedBonus, double salaryGrowthRate,
+            int bankWithdrawal, int bankBalance, int ccExpense) {
         setAuthenticatedUser(userId);
 
         UserProfile profile = new UserProfile(userId, LocalDate.now().minusYears(30), 150_000L, 65);
@@ -211,7 +243,28 @@ class AssetSimulationFamilyIsolationIntegrationTest {
         SalaryUserSettings salarySettings = new SalaryUserSettings();
         salarySettings.setUseHistoricalBonusForProjection(false);
         salarySettings.setExpectedAnnualBonus(expectedBonus);
+        salarySettings.setSalaryGrowthRate(salaryGrowthRate);
         salaryUserSettingsRepository.save(salarySettings);
+
+        TransactionCategory essentialCategory = transactionCategoryRepository.save(
+                new TransactionCategory("Living-" + userId, true, false, null));
+
+        LocalDate today = LocalDate.now();
+        String yearMonth = today.format(DateTimeFormatter.ofPattern("yyyy-MM"));
+
+        BankStatement bankStatement = new BankStatement("Bank-" + userId, yearMonth);
+        BankTransaction bankTx = new BankTransaction("Bank-" + userId, today, "Rent-" + userId,
+                null, bankWithdrawal, bankBalance, null);
+        bankTx.setCategory(essentialCategory);
+        bankStatement.addTransaction(bankTx);
+        bankStatementRepository.save(bankStatement);
+
+        CreditCardStatement ccStatement = new CreditCardStatement("Card-" + userId, yearMonth, null, ccExpense);
+        CreditCardTransaction ccTx = new CreditCardTransaction("Card-" + userId, today, "Groceries-" + userId,
+                ccExpense);
+        ccTx.setCategory(essentialCategory);
+        ccStatement.addTransaction(ccTx);
+        creditCardStatementRepository.save(ccStatement);
     }
 
     @Test
@@ -234,7 +287,7 @@ class AssetSimulationFamilyIsolationIntegrationTest {
         assertThat(familyData).isEqualTo(personalData);
 
         // Verify Year 1 (full projection year) values reflect ONLY User A's settings,
-        // not User B's
+        // transactions, and salaryGrowthRate — not User B's
         JsonNode year1 = familyData.get(1);
         assertThat(year1.get("projectedAnnualSalary").asLong()).isEqualTo(500_000L * 12);
         assertThat(year1.get("netIncome").asLong()).isGreaterThan(4_500_000L).isLessThanOrEqualTo(7_000_000L);
@@ -243,5 +296,7 @@ class AssetSimulationFamilyIsolationIntegrationTest {
                 .isLessThanOrEqualTo(50_000L * 12 * 2);
         assertThat(year1.get("projectedDcBalance").asLong()).isGreaterThan(0L)
                 .isLessThanOrEqualTo(10_000L * 12 * 2);
+        assertThat(year1.get("projectedLiquidCash").asLong()).isGreaterThan(0L)
+                .isLessThan(15_000_000L);
     }
 }

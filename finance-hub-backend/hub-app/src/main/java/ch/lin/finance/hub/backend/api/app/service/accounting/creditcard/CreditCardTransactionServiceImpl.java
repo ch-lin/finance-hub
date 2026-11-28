@@ -28,10 +28,15 @@ import org.springframework.transaction.annotation.Transactional;
 
 import ch.lin.finance.hub.backend.api.app.repository.accounting.creditcard.CreditCardStatementRepository;
 import ch.lin.finance.hub.backend.api.app.repository.accounting.creditcard.CreditCardTransactionRepository;
+import ch.lin.finance.hub.backend.api.app.security.OwnershipGuard;
+import ch.lin.finance.hub.backend.api.app.security.ScopeResolver;
+import ch.lin.finance.hub.backend.api.app.security.ScopeResolver.ReadableScope;
 import ch.lin.finance.hub.backend.api.app.service.accounting.creditcard.command.CreateCreditCardTransactionCommand;
 import ch.lin.finance.hub.backend.api.app.service.accounting.creditcard.result.CreditCardTransactionResult;
+import ch.lin.finance.hub.backend.api.app.util.SecurityUtil;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.creditcard.CreditCardStatement;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.creditcard.CreditCardTransaction;
+import ch.lin.finance.hub.backend.api.domain.model.base.PrivacyLevel;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.Tuple;
@@ -59,6 +64,10 @@ public class CreditCardTransactionServiceImpl implements CreditCardTransactionSe
      */
     private final CreditCardTransactionRepository transactionRepository;
 
+    private final OwnershipGuard ownershipGuard;
+
+    private final ScopeResolver scopeResolver;
+
     /**
      * Entity manager used for dynamic Criteria API queries.
      */
@@ -70,7 +79,7 @@ public class CreditCardTransactionServiceImpl implements CreditCardTransactionSe
     public Page<CreditCardTransactionResult> getTransactions(List<String> cardNames, LocalDate startDate,
             LocalDate endDate,
             Pageable pageable) {
-        Specification<CreditCardTransaction> spec = (root, query, cb) -> {
+        Specification<CreditCardTransaction> filterSpec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
             if (cardNames != null && !cardNames.isEmpty()) {
@@ -88,6 +97,9 @@ public class CreditCardTransactionServiceImpl implements CreditCardTransactionSe
             return cb.and(predicates.toArray(Predicate[]::new));
         };
 
+        Specification<CreditCardTransaction> spec = ownershipGuard.<CreditCardTransaction>readableSpec()
+                .and(filterSpec);
+
         return transactionRepository.findAll(spec, Objects.requireNonNull(pageable))
                 .map(CreditCardTransactionResult::fromEntity);
     }
@@ -95,7 +107,12 @@ public class CreditCardTransactionServiceImpl implements CreditCardTransactionSe
     @Override
     @Transactional(readOnly = true)
     public List<String> getAvailableCardNames() {
-        return transactionRepository.findDistinctCardNames();
+        ReadableScope scope = scopeResolver.resolveReadableScope();
+        if (!scope.isFamily()) {
+            return transactionRepository.findDistinctCardNamesByOwnerUserId(scope.currentUserId());
+        }
+        return transactionRepository.findDistinctCardNamesForFamily(
+                scope.currentUserId(), scope.familyMemberIds(), PrivacyLevel.PRIVATE);
     }
 
     @Override
@@ -106,6 +123,11 @@ public class CreditCardTransactionServiceImpl implements CreditCardTransactionSe
         Root<CreditCardTransaction> root = query.from(CreditCardTransaction.class);
 
         List<Predicate> predicates = new ArrayList<>();
+        Predicate scopePredicate = ownershipGuard.<CreditCardTransaction>readableSpec()
+                .toPredicate(Objects.requireNonNull(root), query, cb);
+        if (scopePredicate != null) {
+            predicates.add(scopePredicate);
+        }
         if (cardNames != null && !cardNames.isEmpty()) {
             predicates.add(root.get("cardName").in(cardNames));
         }
@@ -137,10 +159,11 @@ public class CreditCardTransactionServiceImpl implements CreditCardTransactionSe
     @Override
     @Transactional
     public CreditCardTransactionResult addTransaction(CreateCreditCardTransactionCommand command) {
+        String currentUserId = SecurityUtil.getCurrentUserId();
         String billingMonth = command.getTransactionDate().format(DateTimeFormatter.ofPattern("yyyy-MM"));
 
         CreditCardStatement statement = statementRepository
-                .findByCardNameAndBillingMonth(command.getCardName(), billingMonth)
+                .findByOwnerUserIdAndCardNameAndBillingMonth(currentUserId, command.getCardName(), billingMonth)
                 .orElseGet(() -> statementRepository
                         .save(new CreditCardStatement(command.getCardName(), billingMonth, null, 0)));
 

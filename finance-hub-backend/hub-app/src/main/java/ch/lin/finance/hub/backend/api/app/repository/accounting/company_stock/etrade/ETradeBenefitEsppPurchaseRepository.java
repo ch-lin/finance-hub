@@ -17,10 +17,15 @@ import ch.lin.finance.hub.backend.api.domain.model.accounting.company_stock.etra
 import java.time.LocalDate;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface ETradeBenefitEsppPurchaseRepository extends JpaRepository<ETradeBenefitEsppPurchase, String> {
+public interface ETradeBenefitEsppPurchaseRepository
+        extends JpaRepository<ETradeBenefitEsppPurchase, Long>, JpaSpecificationExecutor<ETradeBenefitEsppPurchase> {
 
     Optional<ETradeBenefitEsppPurchase> findBySymbolAndPurchaseDate(String symbol, LocalDate purchaseDate);
+
+    Optional<ETradeBenefitEsppPurchase> findByOwnerUserIdAndSymbolAndPurchaseDate(String ownerUserId, String symbol,
+            LocalDate purchaseDate);
 }

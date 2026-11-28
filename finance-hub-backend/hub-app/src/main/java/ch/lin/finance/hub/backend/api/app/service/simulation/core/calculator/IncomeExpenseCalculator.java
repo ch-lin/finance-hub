@@ -12,10 +12,13 @@
  */
 package ch.lin.finance.hub.backend.api.app.service.simulation.core.calculator;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
@@ -23,7 +26,6 @@ import org.springframework.stereotype.Component;
 import ch.lin.finance.hub.backend.api.app.repository.accounting.bank.BankTransactionRepository;
 import ch.lin.finance.hub.backend.api.app.repository.accounting.creditcard.CreditCardTransactionRepository;
 import ch.lin.finance.hub.backend.api.app.repository.accounting.reconciliation.TransactionLinkRepository;
-import ch.lin.finance.hub.backend.api.app.repository.accounting.salary.SalaryUserSettingsRepository;
 import ch.lin.finance.hub.backend.api.app.service.simulation.core.model.InsurancePolicyDto;
 import ch.lin.finance.hub.backend.api.app.service.simulation.core.model.SimulationContext;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.bank.BankTransaction;
@@ -44,7 +46,6 @@ public class IncomeExpenseCalculator {
     private final BankTransactionRepository bankTransactionRepository;
     private final CreditCardTransactionRepository creditCardTransactionRepository;
     private final TransactionLinkRepository transactionLinkRepository;
-    private final SalaryUserSettingsRepository salaryUserSettingsRepository;
 
     public long calculateSalaryForYear(SimulationContext context, List<CareerEvent> careerEvents) {
         return calculateSalaryForYear(context, careerEvents, null, null);
@@ -77,9 +78,7 @@ public class IncomeExpenseCalculator {
             Long ytdSalary, int startMonth, int endMonth) {
         long currentSalary = context.getCurrentAnnualSalary();
         if (context.getYear() > context.getCurrentYear()) {
-            var salarySettings = salaryUserSettingsRepository.findFirstBy().orElse(null);
-            Double profileGrowthRate = salarySettings != null ? salarySettings.getSalaryGrowthRate() : null;
-            double salaryGrowthRate = profileGrowthRate != null ? profileGrowthRate : 0.0;
+            double salaryGrowthRate = context.getSalaryGrowthRate();
             if (salaryGrowthRate > 0) {
                 currentSalary = Math.round(currentSalary * (1.0 + salaryGrowthRate));
             }
@@ -247,8 +246,8 @@ public class IncomeExpenseCalculator {
         return annualExpenses;
     }
 
-    public long calculateDynamicBaselineMonthlyExpenses(FinanceHubConfig config, UserProfile profile) {
-        int pastMonths = java.util.Optional.ofNullable(config.getExpenseCalculationPastMonths()).orElse(12);
+    public long calculateDynamicBaselineMonthlyExpenses(FinanceHubConfig config, UserProfile profile, String userId) {
+        int pastMonths = Optional.ofNullable(config.getExpenseCalculationPastMonths()).orElse(12);
         if (pastMonths <= 0) {
             Long manualBase = profile != null ? profile.getManualMonthlyBaseExpense() : null;
             return manualBase != null ? manualBase : 250_000L;
@@ -257,10 +256,10 @@ public class IncomeExpenseCalculator {
         LocalDate endDate = LocalDate.now();
         LocalDate startDate = endDate.minusMonths(pastMonths);
 
-        List<BankTransaction> bankTransactions = bankTransactionRepository.findByTransactionDateBetween(startDate,
-                endDate);
+        List<BankTransaction> bankTransactions = bankTransactionRepository
+                .findByOwnerUserIdAndTransactionDateBetween(userId, startDate, endDate);
         List<CreditCardTransaction> ccTransactions = creditCardTransactionRepository
-                .findByTransactionDateBetween(startDate, endDate);
+                .findByOwnerUserIdAndTransactionDateBetween(userId, startDate, endDate);
 
         LocalDate earliestDate = endDate;
         for (BankTransaction bt : bankTransactions) {
@@ -273,7 +272,7 @@ public class IncomeExpenseCalculator {
                 earliestDate = cc.getTransactionDate();
             }
         }
-        long actualMonths = java.time.temporal.ChronoUnit.MONTHS.between(earliestDate.withDayOfMonth(1),
+        long actualMonths = ChronoUnit.MONTHS.between(earliestDate.withDayOfMonth(1),
                 endDate.withDayOfMonth(1));
         if (actualMonths <= 0) {
             actualMonths = 1;
@@ -306,7 +305,7 @@ public class IncomeExpenseCalculator {
                                     && !item.getCategory().isSimulationDuplicate()) {
                                 if (item.getUnitPrice() != null && item.getQuantity() != null) {
                                     long itemTotal = item.getUnitPrice()
-                                            .multiply(new java.math.BigDecimal(item.getQuantity())).longValue();
+                                            .multiply(new BigDecimal(item.getQuantity())).longValue();
                                     totalEssentialExpenses += itemTotal;
                                 }
                             }

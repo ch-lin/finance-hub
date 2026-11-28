@@ -39,6 +39,10 @@ public interface DefinedContributionAccountSnapshotRepository
             DefinedContributionType type);
 
     @EntityGraph(attributePaths = { "funds" })
+    Optional<DefinedContributionAccountSnapshot> findByOwnerUserIdAndRecordDateAndType(String ownerUserId,
+            LocalDate recordDate, DefinedContributionType type);
+
+    @EntityGraph(attributePaths = { "funds" })
     List<DefinedContributionAccountSnapshot> findAllByOrderByRecordDateDesc();
 
     Optional<DefinedContributionAccountSnapshot> findFirstByOrderByRecordDateDesc();

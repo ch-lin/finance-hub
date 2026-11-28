@@ -20,6 +20,7 @@ import java.util.List;
 import org.hibernate.annotations.ColumnDefault;
 
 import ch.lin.finance.hub.backend.api.domain.model.accounting.shopping.BaseOrder;
+import ch.lin.finance.hub.backend.api.domain.model.base.MultiUserBaseEntity;
 import ch.lin.platform.domain.model.BaseEntity;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -43,7 +44,7 @@ import lombok.Setter;
         @Index(name = AmazonOrder.ID_INDEX, columnList = BaseEntity.ID_COLUMN),
         @Index(name = AmazonOrder.ORDER_DATE_INDEX, columnList = BaseOrder.ORDER_DATE_COLUMN)
 }, uniqueConstraints = {
-        @UniqueConstraint(columnNames = BaseOrder.ORDER_ID_COLUMN)
+        @UniqueConstraint(columnNames = { MultiUserBaseEntity.OWNER_USER_ID_COLUMN, BaseOrder.ORDER_ID_COLUMN })
 })
 @Getter
 public class AmazonOrder extends BaseOrder<AmazonItem, AmazonPayment> {
@@ -172,7 +173,8 @@ public class AmazonOrder extends BaseOrder<AmazonItem, AmazonPayment> {
      * Merges the current order with data from a newly parsed order:
      * - Overwrites order-level facts (including shippingDate) unconditionally.
      * - Preserves accounting state (reconciledAmount).
-     * - Merges items loosely by composite key, strictly preserving category and privacyLevel.
+     * - Merges items loosely by composite key, strictly preserving category and
+     * privacyLevel.
      * - Re-populates payments and shipments from incoming facts.
      *
      * @param incoming The newly parsed order containing updated information.

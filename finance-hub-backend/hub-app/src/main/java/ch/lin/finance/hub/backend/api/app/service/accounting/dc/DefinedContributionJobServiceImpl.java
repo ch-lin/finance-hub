@@ -107,7 +107,7 @@ public class DefinedContributionJobServiceImpl implements JobExecutor, FileProce
 
                 if (parsed != null) {
                     DefinedContributionAccountSnapshot snapshot = parsed.snapshot();
-                    applyExpectedReturnRates(snapshot);
+                    applyExpectedReturnRates(snapshot, null);
 
                     if (!dryRun) {
                         transactionTemplate.execute(status -> {
@@ -158,13 +158,17 @@ public class DefinedContributionJobServiceImpl implements JobExecutor, FileProce
         }
         DefinedContributionAccountSnapshot snapshot = parsed.snapshot();
 
-        applyExpectedReturnRates(snapshot);
+        applyExpectedReturnRates(snapshot, ownerUserId);
 
         if (!dryRun) {
+            boolean hasOwner = ownerUserId != null && !ownerUserId.isBlank();
             transactionTemplate.execute(status -> {
                 logger.info("Saving DC snapshot record for date: {}", snapshot.getRecordDate());
-                DefinedContributionAccountSnapshot existing = dcRepository
-                        .findByRecordDateAndType(snapshot.getRecordDate(), snapshot.getType()).orElse(null);
+                DefinedContributionAccountSnapshot existing = (hasOwner
+                        ? dcRepository.findByOwnerUserIdAndRecordDateAndType(ownerUserId, snapshot.getRecordDate(),
+                                snapshot.getType())
+                        : dcRepository.findByRecordDateAndType(snapshot.getRecordDate(), snapshot.getType()))
+                        .orElse(null);
                 if (existing != null) {
                     mergeSnapshotFacts(existing, snapshot, parsed.pageType());
                     return dcRepository.save(existing);
@@ -182,12 +186,12 @@ public class DefinedContributionJobServiceImpl implements JobExecutor, FileProce
 
     public record ParsedDcSnapshot(
             DefinedContributionAccountSnapshot snapshot,
-            DefinedContributionPageType pageType
-    ) {}
+            DefinedContributionPageType pageType) {
+    }
 
     private void mergeSnapshotFacts(DefinedContributionAccountSnapshot existing,
-                                     DefinedContributionAccountSnapshot incoming,
-                                     DefinedContributionPageType pageType) {
+            DefinedContributionAccountSnapshot incoming,
+            DefinedContributionPageType pageType) {
         switch (pageType) {
             case MEMBER_INFO -> existing.mergeMemberInfoFacts(incoming);
             case ALLOCATION -> existing.mergeAllocationFacts(incoming);
@@ -227,17 +231,21 @@ public class DefinedContributionJobServiceImpl implements JobExecutor, FileProce
         return null;
     }
 
-    private void applyExpectedReturnRates(DefinedContributionAccountSnapshot snapshot) {
+    private void applyExpectedReturnRates(DefinedContributionAccountSnapshot snapshot, String ownerUserId) {
         if (snapshot == null || snapshot.getFunds() == null || snapshot.getFunds().isEmpty()) {
             return;
         }
 
+        boolean hasOwner = ownerUserId != null && !ownerUserId.isBlank();
         for (DefinedContributionFundSnapshot fund : snapshot.getFunds()) {
             // Find the most recent snapshot for this fund
-            Double rate = dcFundRepository.findFirstByCommodityTypeAndFundNameOrderByAccountSnapshot_RecordDateDesc(
-                    fund.getCommodityType(), fund.getFundName())
-                    .map(f -> f.getExpectedReturnRate())
-                    .orElse(null); // Keep null if no history found
+            Double rate = (hasOwner
+                    ? dcFundRepository
+                            .findFirstByOwnerUserIdAndCommodityTypeAndFundNameOrderByAccountSnapshot_RecordDateDesc(
+                                    ownerUserId, fund.getCommodityType(), fund.getFundName())
+                    : dcFundRepository.findFirstByCommodityTypeAndFundNameOrderByAccountSnapshot_RecordDateDesc(
+                            fund.getCommodityType(), fund.getFundName()))
+                    .map(f -> f.getExpectedReturnRate()).orElse(null); // Keep null if no history found
 
             fund.updateExpectedReturnRate(rate);
         }

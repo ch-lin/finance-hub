@@ -102,7 +102,7 @@ public abstract class BaseOrder<I extends BaseOrderItem<?>, P extends BasePaymen
      * the source platform).
      */
     @NotNull
-    @Column(name = BaseOrder.ORDER_ID_COLUMN, nullable = false, unique = true)
+    @Column(name = BaseOrder.ORDER_ID_COLUMN, nullable = false)
     private String orderId;
 
     /**
@@ -277,7 +277,8 @@ public abstract class BaseOrder<I extends BaseOrderItem<?>, P extends BasePaymen
     /**
      * Merges incoming order items into this order:
      * - Matches existing items by composite key: name and unitPrice.
-     * - If matched, updates facts (quantity, seller, itemId) while preserving user fields (category, privacyLevel).
+     * - If matched, updates facts (quantity, seller, itemId) while preserving user
+     * fields (category, privacyLevel).
      * - If unmatched, adds as a new item to this order.
      * - Leaves unmatched existing items intact (zero deletion).
      *
@@ -307,7 +308,8 @@ public abstract class BaseOrder<I extends BaseOrderItem<?>, P extends BasePaymen
      * Merges incoming order fact fields into this order:
      * - Overwrites all order-level facts unconditionally using direct assignment.
      * - Strictly preserves accounting state (reconciledAmount).
-     * - Merges items loosely by composite key, preserving category and privacyLevel.
+     * - Merges items loosely by composite key, preserving category and
+     * privacyLevel.
      *
      * @param incoming The parsed order to merge facts from.
      */

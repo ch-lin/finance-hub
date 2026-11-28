@@ -16,11 +16,16 @@ import ch.lin.finance.hub.backend.api.domain.model.accounting.company_stock.etra
 
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface ETradeBenefitRsuVestScheduleRepository extends JpaRepository<ETradeBenefitRsuVestSchedule, String> {
+public interface ETradeBenefitRsuVestScheduleRepository extends JpaRepository<ETradeBenefitRsuVestSchedule, Long>,
+        JpaSpecificationExecutor<ETradeBenefitRsuVestSchedule> {
 
     Optional<ETradeBenefitRsuVestSchedule> findBySymbolAndGrantNumberAndVestPeriod(String symbol, String grantNumber,
             Integer vestPeriod);
+
+    Optional<ETradeBenefitRsuVestSchedule> findByOwnerUserIdAndSymbolAndGrantNumberAndVestPeriod(String ownerUserId,
+            String symbol, String grantNumber, Integer vestPeriod);
 }

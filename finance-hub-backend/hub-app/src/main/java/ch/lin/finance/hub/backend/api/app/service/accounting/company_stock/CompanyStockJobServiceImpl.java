@@ -36,6 +36,7 @@ import ch.lin.finance.hub.backend.api.app.repository.accounting.company_stock.et
 import ch.lin.finance.hub.backend.api.app.repository.accounting.company_stock.etrade.ETradeCashTransactionRepository;
 import ch.lin.finance.hub.backend.api.app.repository.accounting.company_stock.etrade.ETradeEsppStockLotRepository;
 import ch.lin.finance.hub.backend.api.app.repository.accounting.company_stock.etrade.ETradeRsuStockLotRepository;
+import ch.lin.finance.hub.backend.api.app.security.OwnershipGuard;
 import ch.lin.finance.hub.backend.api.app.service.accounting.company_stock.command.SaveETradeExtensionCommand;
 import ch.lin.finance.hub.backend.api.common.exception.HtmlParsingException;
 import ch.lin.finance.hub.backend.api.app.service.accounting.company_stock.etrade.ETradeParser;
@@ -53,6 +54,7 @@ import ch.lin.finance.hub.backend.api.app.service.job.file.FileProcessingResult;
 import ch.lin.finance.hub.backend.api.app.service.job.file.FileProcessingStrategy;
 import ch.lin.finance.hub.backend.api.app.service.job.file.utils.HtmlArchiveUtils;
 import ch.lin.finance.hub.backend.api.app.service.job.result.JobResult;
+import ch.lin.finance.hub.backend.api.app.util.SecurityUtil;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.company_stock.etrade.BaseStockLot;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.company_stock.etrade.ETradeAccountSnapshot;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.company_stock.etrade.ETradeBenefitEsppPurchase;
@@ -80,6 +82,7 @@ public class CompanyStockJobServiceImpl implements JobExecutor, FileProcessingSt
     private final ETradeBenefitRsuVestScheduleRepository rsuVestScheduleRepository;
     private final List<ETradeParser<?>> parsers;
     private final TransactionTemplate transactionTemplate;
+    private final OwnershipGuard ownershipGuard;
     private final String importPath;
 
     public CompanyStockJobServiceImpl(ETradeAccountSnapshotRepository repository,
@@ -92,6 +95,7 @@ public class CompanyStockJobServiceImpl implements JobExecutor, FileProcessingSt
             ETradeBenefitRsuVestScheduleRepository rsuVestScheduleRepository,
             List<ETradeParser<?>> parsers,
             TransactionTemplate transactionTemplate,
+            OwnershipGuard ownershipGuard,
             @Value("${finance.hub.input.base-path:/app/data}") String basePath) {
         this.repository = repository;
         this.esppStockLotRepository = esppStockLotRepository;
@@ -103,6 +107,7 @@ public class CompanyStockJobServiceImpl implements JobExecutor, FileProcessingSt
         this.rsuVestScheduleRepository = rsuVestScheduleRepository;
         this.parsers = parsers;
         this.transactionTemplate = transactionTemplate;
+        this.ownershipGuard = ownershipGuard;
         this.importPath = basePath + "/etrade";
     }
 
@@ -132,7 +137,7 @@ public class CompanyStockJobServiceImpl implements JobExecutor, FileProcessingSt
                 if (result != null) {
                     if (!dryRun) {
                         transactionTemplate.execute(status -> {
-                            handleParsedResult(result);
+                            handleParsedResult(result, null);
                             return null;
                         });
                     } else {
@@ -179,7 +184,7 @@ public class CompanyStockJobServiceImpl implements JobExecutor, FileProcessingSt
 
         if (!dryRun) {
             transactionTemplate.execute(status -> {
-                handleParsedResult(result);
+                handleParsedResult(result, ownerUserId);
                 return null;
             });
         } else {
@@ -251,8 +256,10 @@ public class CompanyStockJobServiceImpl implements JobExecutor, FileProcessingSt
         }
 
         if (!dryRun) {
+            String currentUserId = SecurityUtil.getCurrentUserId();
             transactionTemplate.execute(status -> {
-                repository.findBySymbolAndRecordDate(snapshot.getSymbol(), snapshot.getRecordDate())
+                repository.findByOwnerUserIdAndSymbolAndRecordDate(currentUserId, snapshot.getSymbol(),
+                        snapshot.getRecordDate())
                         .ifPresentOrElse(existing -> {
                             existing.merge(snapshot);
                             repository.save(existing);
@@ -260,7 +267,8 @@ public class CompanyStockJobServiceImpl implements JobExecutor, FileProcessingSt
                 logger.info("Saved E-Trade snapshot from extension for date: {}", command.getRecordDate());
 
                 for (ETradeEsppStockLot esppLot : esppLots) {
-                    esppStockLotRepository.findBySymbolAndPurchaseDate(esppLot.getSymbol(), esppLot.getPurchaseDate())
+                    esppStockLotRepository.findByOwnerUserIdAndSymbolAndPurchaseDate(currentUserId,
+                            esppLot.getSymbol(), esppLot.getPurchaseDate())
                             .ifPresentOrElse(existing -> {
                                 existing.merge(esppLot);
                                 esppStockLotRepository.save(existing);
@@ -268,7 +276,7 @@ public class CompanyStockJobServiceImpl implements JobExecutor, FileProcessingSt
                 }
 
                 for (ETradeRsuStockLot rsuLot : rsuLots) {
-                    rsuStockLotRepository.findBySymbolAndGrantNumberAndVestPeriod(
+                    rsuStockLotRepository.findByOwnerUserIdAndSymbolAndGrantNumberAndVestPeriod(currentUserId,
                             rsuLot.getSymbol(), rsuLot.getGrantNumber(), rsuLot.getVestPeriod())
                             .ifPresentOrElse(existing -> {
                                 existing.merge(rsuLot);
@@ -280,8 +288,9 @@ public class CompanyStockJobServiceImpl implements JobExecutor, FileProcessingSt
 
                 int insertedCashTxs = 0;
                 for (ETradeCashTransaction tx : cashTxs) {
-                    if (!cashTransactionRepository.existsBySymbolAndTransactionDateAndDescriptionAndAmount(
-                            tx.getSymbol(), tx.getTransactionDate(), tx.getDescription(), tx.getAmount())) {
+                    if (!cashTransactionRepository
+                            .existsByOwnerUserIdAndSymbolAndTransactionDateAndDescriptionAndAmount(currentUserId,
+                                    tx.getSymbol(), tx.getTransactionDate(), tx.getDescription(), tx.getAmount())) {
                         cashTransactionRepository.save(tx);
                         insertedCashTxs++;
                     }
@@ -297,55 +306,66 @@ public class CompanyStockJobServiceImpl implements JobExecutor, FileProcessingSt
 
     @Override
     public List<ETradeAccountSnapshotResult> getAllSnapshots() {
-        return repository.findAll().stream().map(ETradeAccountSnapshotResult::fromEntity).toList();
+        return repository.findAll(ownershipGuard.readableSpec()).stream().map(ETradeAccountSnapshotResult::fromEntity)
+                .toList();
     }
 
     @Override
     public List<StockLotResult> getStockLots() {
         List<StockLotResult> results = new ArrayList<>();
-        esppStockLotRepository.findAll().forEach(lot -> results.add(StockLotResult.fromEntity(lot)));
-        rsuStockLotRepository.findAll().forEach(lot -> results.add(StockLotResult.fromEntity(lot)));
+        esppStockLotRepository.findAll(ownershipGuard.readableSpec())
+                .forEach(lot -> results.add(StockLotResult.fromEntity(lot)));
+        rsuStockLotRepository.findAll(ownershipGuard.readableSpec())
+                .forEach(lot -> results.add(StockLotResult.fromEntity(lot)));
         return results;
     }
 
     @Override
     public List<ETradeCashTransactionResult> getCashTransactions() {
-        return cashTransactionRepository.findAll().stream().map(ETradeCashTransactionResult::fromEntity).toList();
+        return cashTransactionRepository.findAll(ownershipGuard.readableSpec()).stream()
+                .map(ETradeCashTransactionResult::fromEntity).toList();
     }
 
     @Override
     public List<ETradeBenefitEsppPurchaseResult> getEsppPurchases() {
-        return esppRepository.findAll().stream().map(ETradeBenefitEsppPurchaseResult::fromEntity).toList();
+        return esppRepository.findAll(ownershipGuard.readableSpec()).stream()
+                .map(ETradeBenefitEsppPurchaseResult::fromEntity).toList();
     }
 
     @Override
     public List<ETradeBenefitRsuGrantResult> getRsuGrants() {
-        return rsuGrantRepository.findAll().stream().map(ETradeBenefitRsuGrantResult::fromEntity).toList();
+        return rsuGrantRepository.findAll(ownershipGuard.readableSpec()).stream()
+                .map(ETradeBenefitRsuGrantResult::fromEntity).toList();
     }
 
     @Override
     public List<ETradeBenefitRsuEventResult> getRsuEvents() {
-        return rsuEventRepository.findAll().stream().map(ETradeBenefitRsuEventResult::fromEntity).toList();
+        return rsuEventRepository.findAll(ownershipGuard.readableSpec()).stream()
+                .map(ETradeBenefitRsuEventResult::fromEntity).toList();
     }
 
     @Override
     public List<ETradeBenefitRsuVestScheduleResult> getRsuVestSchedules() {
-        return rsuVestScheduleRepository.findAll().stream().map(ETradeBenefitRsuVestScheduleResult::fromEntity)
-                .toList();
+        return rsuVestScheduleRepository.findAll(ownershipGuard.readableSpec()).stream()
+                .map(ETradeBenefitRsuVestScheduleResult::fromEntity).toList();
     }
 
-    private void handleParsedResult(Object result) {
+    private void handleParsedResult(Object result, String ownerUserId) {
+        boolean hasOwner = ownerUserId != null && !ownerUserId.isBlank();
         switch (result) {
             case ETradeHoldingsParseResult parsed -> {
                 if (parsed.getSnapshot() != null) {
                     ETradeAccountSnapshot snapshot = parsed.getSnapshot();
                     logger.info("Saving E-Trade snapshot record for symbol: {}, date: {}", snapshot.getSymbol(),
                             snapshot.getRecordDate());
-                    repository.findBySymbolAndRecordDate(snapshot.getSymbol(), snapshot.getRecordDate())
-                            .ifPresentOrElse(existing -> {
-                                existing.merge(snapshot);
-                                repository.save(existing);
-                            }, () -> repository.save(snapshot));
+                    var existingSnapshot = hasOwner
+                            ? repository.findByOwnerUserIdAndSymbolAndRecordDate(ownerUserId, snapshot.getSymbol(),
+                                    snapshot.getRecordDate())
+                            : repository.findBySymbolAndRecordDate(snapshot.getSymbol(), snapshot.getRecordDate());
+                    existingSnapshot.ifPresentOrElse(existing -> {
+                        existing.merge(snapshot);
+                        repository.save(existing);
+                    }, () -> repository.save(snapshot));
                 }
 
                 List<ETradeEsppStockLot> esppLots = new ArrayList<>();
@@ -362,28 +382,41 @@ public class CompanyStockJobServiceImpl implements JobExecutor, FileProcessingSt
                 }
 
                 for (ETradeEsppStockLot esppLot : esppLots) {
-                    esppStockLotRepository.findBySymbolAndPurchaseDate(esppLot.getSymbol(), esppLot.getPurchaseDate())
-                            .ifPresentOrElse(existing -> {
-                                existing.merge(esppLot);
-                                esppStockLotRepository.save(existing);
-                            }, () -> esppStockLotRepository.save(esppLot));
+                    var existingEspp = hasOwner
+                            ? esppStockLotRepository.findByOwnerUserIdAndSymbolAndPurchaseDate(ownerUserId,
+                                    esppLot.getSymbol(), esppLot.getPurchaseDate())
+                            : esppStockLotRepository.findBySymbolAndPurchaseDate(esppLot.getSymbol(),
+                                    esppLot.getPurchaseDate());
+                    existingEspp.ifPresentOrElse(existing -> {
+                        existing.merge(esppLot);
+                        esppStockLotRepository.save(existing);
+                    }, () -> esppStockLotRepository.save(esppLot));
                 }
 
                 for (ETradeRsuStockLot rsuLot : rsuLots) {
-                    rsuStockLotRepository.findBySymbolAndGrantNumberAndVestPeriod(
-                            rsuLot.getSymbol(), rsuLot.getGrantNumber(), rsuLot.getVestPeriod())
-                            .ifPresentOrElse(existing -> {
-                                existing.merge(rsuLot);
-                                rsuStockLotRepository.save(existing);
-                            }, () -> rsuStockLotRepository.save(rsuLot));
+                    var existingRsu = hasOwner
+                            ? rsuStockLotRepository.findByOwnerUserIdAndSymbolAndGrantNumberAndVestPeriod(ownerUserId,
+                                    rsuLot.getSymbol(), rsuLot.getGrantNumber(), rsuLot.getVestPeriod())
+                            : rsuStockLotRepository.findBySymbolAndGrantNumberAndVestPeriod(rsuLot.getSymbol(),
+                                    rsuLot.getGrantNumber(), rsuLot.getVestPeriod());
+                    existingRsu.ifPresentOrElse(existing -> {
+                        existing.merge(rsuLot);
+                        rsuStockLotRepository.save(existing);
+                    }, () -> rsuStockLotRepository.save(rsuLot));
                 }
                 logger.info("Merged E-Trade stock lots ({} ESPP lots, {} RSU lots)", esppLots.size(), rsuLots.size());
 
                 logger.info("Processing Cash Transactions ({} parsed)", parsed.getCashTransactions().size());
                 int insertedCashTxs = 0;
                 for (ETradeCashTransaction tx : parsed.getCashTransactions()) {
-                    if (!cashTransactionRepository.existsBySymbolAndTransactionDateAndDescriptionAndAmount(
-                            tx.getSymbol(), tx.getTransactionDate(), tx.getDescription(), tx.getAmount())) {
+                    boolean exists = hasOwner
+                            ? cashTransactionRepository
+                                    .existsByOwnerUserIdAndSymbolAndTransactionDateAndDescriptionAndAmount(ownerUserId,
+                                            tx.getSymbol(), tx.getTransactionDate(), tx.getDescription(),
+                                            tx.getAmount())
+                            : cashTransactionRepository.existsBySymbolAndTransactionDateAndDescriptionAndAmount(
+                                    tx.getSymbol(), tx.getTransactionDate(), tx.getDescription(), tx.getAmount());
+                    if (!exists) {
                         cashTransactionRepository.save(tx);
                         insertedCashTxs++;
                     }
@@ -395,44 +428,63 @@ public class CompanyStockJobServiceImpl implements JobExecutor, FileProcessingSt
 
                 if (parsed.getEsppPurchases() != null) {
                     for (ETradeBenefitEsppPurchase purchase : parsed.getEsppPurchases()) {
-                        esppRepository.findBySymbolAndPurchaseDate(purchase.getSymbol(), purchase.getPurchaseDate())
-                                .ifPresentOrElse(existing -> {
-                                    existing.merge(purchase);
-                                    esppRepository.save(existing);
-                                }, () -> esppRepository.save(purchase));
+                        var existingPurchase = hasOwner
+                                ? esppRepository.findByOwnerUserIdAndSymbolAndPurchaseDate(ownerUserId,
+                                        purchase.getSymbol(), purchase.getPurchaseDate())
+                                : esppRepository.findBySymbolAndPurchaseDate(purchase.getSymbol(),
+                                        purchase.getPurchaseDate());
+                        existingPurchase.ifPresentOrElse(existing -> {
+                            existing.merge(purchase);
+                            esppRepository.save(existing);
+                        }, () -> esppRepository.save(purchase));
                     }
                 }
 
                 if (parsed.getRsuGrants() != null) {
                     for (ETradeBenefitRsuGrant grant : parsed.getRsuGrants()) {
-                        rsuGrantRepository.findBySymbolAndGrantNumber(grant.getSymbol(), grant.getGrantNumber())
-                                .ifPresentOrElse(existing -> {
-                                    existing.merge(grant);
-                                    rsuGrantRepository.save(existing);
-                                }, () -> rsuGrantRepository.save(grant));
+                        var existingGrant = hasOwner
+                                ? rsuGrantRepository.findByOwnerUserIdAndSymbolAndGrantNumber(ownerUserId,
+                                        grant.getSymbol(), grant.getGrantNumber())
+                                : rsuGrantRepository.findBySymbolAndGrantNumber(grant.getSymbol(),
+                                        grant.getGrantNumber());
+                        existingGrant.ifPresentOrElse(existing -> {
+                            existing.merge(grant);
+                            rsuGrantRepository.save(existing);
+                        }, () -> rsuGrantRepository.save(grant));
                     }
                 }
 
                 if (parsed.getRsuEvents() != null) {
                     for (ETradeBenefitRsuEvent event : parsed.getRsuEvents()) {
-                        rsuEventRepository.findBySymbolAndGrantNumberAndEventDateAndEventTypeAndQuantity(
-                                event.getSymbol(), event.getGrantNumber(), event.getEventDate(), event.getEventType(),
-                                event.getQuantity())
-                                .ifPresentOrElse(existing -> {
-                                    existing.merge(event);
-                                    rsuEventRepository.save(existing);
-                                }, () -> rsuEventRepository.save(event));
+                        var existingEvent = hasOwner
+                                ? rsuEventRepository
+                                        .findByOwnerUserIdAndSymbolAndGrantNumberAndEventDateAndEventTypeAndQuantity(
+                                                ownerUserId, event.getSymbol(), event.getGrantNumber(),
+                                                event.getEventDate(), event.getEventType(), event.getQuantity())
+                                : rsuEventRepository
+                                        .findBySymbolAndGrantNumberAndEventDateAndEventTypeAndQuantity(
+                                                event.getSymbol(), event.getGrantNumber(), event.getEventDate(),
+                                                event.getEventType(), event.getQuantity());
+                        existingEvent.ifPresentOrElse(existing -> {
+                            existing.merge(event);
+                            rsuEventRepository.save(existing);
+                        }, () -> rsuEventRepository.save(event));
                     }
                 }
 
                 if (parsed.getRsuVestSchedules() != null) {
                     for (ETradeBenefitRsuVestSchedule schedule : parsed.getRsuVestSchedules()) {
-                        rsuVestScheduleRepository.findBySymbolAndGrantNumberAndVestPeriod(
-                                schedule.getSymbol(), schedule.getGrantNumber(), schedule.getVestPeriod())
-                                .ifPresentOrElse(existing -> {
-                                    existing.merge(schedule);
-                                    rsuVestScheduleRepository.save(existing);
-                                }, () -> rsuVestScheduleRepository.save(schedule));
+                        var existingSchedule = hasOwner
+                                ? rsuVestScheduleRepository
+                                        .findByOwnerUserIdAndSymbolAndGrantNumberAndVestPeriod(ownerUserId,
+                                                schedule.getSymbol(), schedule.getGrantNumber(),
+                                                schedule.getVestPeriod())
+                                : rsuVestScheduleRepository.findBySymbolAndGrantNumberAndVestPeriod(
+                                        schedule.getSymbol(), schedule.getGrantNumber(), schedule.getVestPeriod());
+                        existingSchedule.ifPresentOrElse(existing -> {
+                            existing.merge(schedule);
+                            rsuVestScheduleRepository.save(existing);
+                        }, () -> rsuVestScheduleRepository.save(schedule));
                     }
                 }
             }

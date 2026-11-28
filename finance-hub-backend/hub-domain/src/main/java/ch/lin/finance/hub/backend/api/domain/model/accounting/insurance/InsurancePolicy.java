@@ -30,9 +30,8 @@ import lombok.Setter;
 
 @Entity
 @Table(name = "finance_insurance_policy", uniqueConstraints = {
-        @UniqueConstraint(name = "uk_insurance_policy_company_number", columnNames = { "company_name",
-                "policy_number"
-        })
+        @UniqueConstraint(name = "uk_insurance_policy_company_number", columnNames = {
+                MultiUserBaseEntity.OWNER_USER_ID_COLUMN, "company_name", "policy_number" })
 })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

@@ -29,6 +29,9 @@ import ch.lin.finance.hub.backend.api.domain.model.accounting.creditcard.CreditC
  * credit card transactions.
  */
 @Repository
-public interface CreditCardStatementRepository extends JpaRepository<CreditCardStatement, String> {
+public interface CreditCardStatementRepository extends JpaRepository<CreditCardStatement, Long> {
     Optional<CreditCardStatement> findByCardNameAndBillingMonth(String cardName, String billingMonth);
+
+    Optional<CreditCardStatement> findByOwnerUserIdAndCardNameAndBillingMonth(String ownerUserId, String cardName,
+            String billingMonth);
 }

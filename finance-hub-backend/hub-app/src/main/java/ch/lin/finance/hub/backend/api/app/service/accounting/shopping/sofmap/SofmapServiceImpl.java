@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import ch.lin.finance.hub.backend.api.app.repository.accounting.shopping.SofmapOrderRepository;
 import ch.lin.finance.hub.backend.api.app.service.accounting.shopping.sofmap.result.SofmapOrderResult;
+import ch.lin.finance.hub.backend.api.app.util.SecurityUtil;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.shopping.sofmap.SofmapOrder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,18 +45,21 @@ public class SofmapServiceImpl implements SofmapService {
     @Transactional
     public SofmapOrderResult saveOrder(SofmapOrder parsedOrder) {
         log.debug("Saving Sofmap order: {}", parsedOrder.getOrderId());
+        String currentUserId = SecurityUtil.getCurrentUserId();
 
-        SofmapOrder savedOrder = sofmapOrderRepository.findByOrderId(Objects.requireNonNull(parsedOrder.getOrderId())).map(existingOrder -> {
-            log.info("Updating existing Sofmap order: {}", existingOrder.getOrderId());
-            existingOrder.merge(parsedOrder);
-            return sofmapOrderRepository.save(existingOrder);
-        }).orElseGet(() -> {
-            log.info("Creating new Sofmap order: {}", parsedOrder.getOrderId());
-            return sofmapOrderRepository.save(parsedOrder);
-        });
+        SofmapOrder savedOrder = sofmapOrderRepository
+                .findByOwnerUserIdAndOrderId(currentUserId, Objects.requireNonNull(parsedOrder.getOrderId()))
+                .map(existingOrder -> {
+                    log.info("Updating existing Sofmap order: {}", existingOrder.getOrderId());
+                    existingOrder.merge(parsedOrder);
+                    return sofmapOrderRepository.save(existingOrder);
+                }).orElseGet(() -> {
+                    log.info("Creating new Sofmap order: {}", parsedOrder.getOrderId());
+                    return sofmapOrderRepository.save(parsedOrder);
+                });
 
         // Ensure collections are properly initialized for the result
-        return sofmapOrderRepository.findWithDetailsByOrderId(savedOrder.getOrderId())
+        return sofmapOrderRepository.findWithDetailsByOwnerUserIdAndOrderId(currentUserId, savedOrder.getOrderId())
                 .map(SofmapOrderResult::fromEntity)
                 .orElseThrow(() -> new IllegalStateException("Failed to retrieve saved Sofmap order details."));
     }
@@ -66,7 +70,8 @@ public class SofmapServiceImpl implements SofmapService {
     @Override
     @Transactional(readOnly = true)
     public Optional<SofmapOrderResult> getOrder(String orderId) {
-        return sofmapOrderRepository.findByOrderId(Objects.requireNonNull(orderId))
+        return sofmapOrderRepository
+                .findByOwnerUserIdAndOrderId(SecurityUtil.getCurrentUserId(), Objects.requireNonNull(orderId))
                 .map(SofmapOrderResult::fromEntity);
     }
 
@@ -76,7 +81,7 @@ public class SofmapServiceImpl implements SofmapService {
     @Override
     @Transactional(readOnly = true)
     public Optional<SofmapOrderResult> getOrderWithDetails(String orderId) {
-        return sofmapOrderRepository.findWithDetailsByOrderId(orderId)
+        return sofmapOrderRepository.findWithDetailsByOwnerUserIdAndOrderId(SecurityUtil.getCurrentUserId(), orderId)
                 .map(SofmapOrderResult::fromEntity);
     }
 }

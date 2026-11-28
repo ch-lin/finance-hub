@@ -61,4 +61,7 @@ public interface BankTransactionRepository
      * @return A list of {@link BankTransaction} records within the date range.
      */
     List<BankTransaction> findByTransactionDateBetween(LocalDate startDate, LocalDate endDate);
+
+    List<BankTransaction> findByOwnerUserIdAndTransactionDateBetween(String ownerUserId, LocalDate startDate,
+            LocalDate endDate);
 }

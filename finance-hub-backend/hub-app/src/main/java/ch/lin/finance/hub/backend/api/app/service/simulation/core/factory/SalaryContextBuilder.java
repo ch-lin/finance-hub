@@ -15,6 +15,7 @@ package ch.lin.finance.hub.backend.api.app.service.simulation.core.factory;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 
@@ -24,6 +25,7 @@ import ch.lin.finance.hub.backend.api.app.service.simulation.core.model.Simulati
 import ch.lin.finance.hub.backend.api.app.service.simulation.core.tax.TaxConstants;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.salary.SalaryRecord;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.salary.SalaryType;
+import ch.lin.finance.hub.backend.api.domain.model.accounting.salary.SalaryUserSettings;
 import ch.lin.finance.hub.backend.api.domain.model.config.FinanceHubConfig;
 import lombok.RequiredArgsConstructor;
 
@@ -38,6 +40,11 @@ public class SalaryContextBuilder {
     }
 
     public BonusInfo resolveAnnualBonusInfo(List<SalaryRecord> salaryRecords, String userId) {
+        return resolveAnnualBonusInfo(salaryRecords, salaryUserSettingsRepository.findByOwnerUserId(userId));
+    }
+
+    private BonusInfo resolveAnnualBonusInfo(List<SalaryRecord> salaryRecords,
+            Optional<SalaryUserSettings> salarySettingsOpt) {
         long currentAnnualBonus = 0L;
         int currentBonusPaymentCount = 0;
 
@@ -55,9 +62,8 @@ public class SalaryContextBuilder {
             }
         }
 
-        var salarySettingsOpt = salaryUserSettingsRepository.findByOwnerUserId(userId);
         if (salarySettingsOpt.isPresent()) {
-            var salarySettings = salarySettingsOpt.get();
+            SalaryUserSettings salarySettings = salarySettingsOpt.get();
             Boolean useHist = salarySettings.getUseHistoricalBonusForProjection();
             if (useHist == null || !useHist) {
                 Long expected = salarySettings.getExpectedAnnualBonus();
@@ -73,8 +79,10 @@ public class SalaryContextBuilder {
             String userId) {
         long baseMonthlySalary;
         List<SalaryRecord> salaryRecords = salaryRecordRepository.findAllByOwnerUserIdOrderByPaymentDateDesc(userId);
+        Optional<SalaryUserSettings> salarySettingsOpt = salaryUserSettingsRepository.findByOwnerUserId(userId);
 
-        BonusInfo bonusInfo = resolveAnnualBonusInfo(salaryRecords, userId);
+        BonusInfo bonusInfo = resolveAnnualBonusInfo(salaryRecords, salarySettingsOpt);
+        double salaryGrowthRate = salarySettingsOpt.map(s -> s.getSalaryGrowthRate()).orElse(0.0);
         long currentAnnualBonus = bonusInfo.annualBonus();
         int currentBonusPaymentCount = bonusInfo.bonusPaymentCount();
         double healthInsuranceRate = TaxConstants.DEFAULT_HEALTH_INSURANCE_RATE; // Default fallback (~4.9%)
@@ -182,6 +190,7 @@ public class SalaryContextBuilder {
         context.setCurrentAnnualSalary(baseMonthlySalary * 12);
         context.setCurrentAnnualBonus(currentAnnualBonus);
         context.setCurrentBonusPaymentCount(currentBonusPaymentCount);
+        context.setSalaryGrowthRate(salaryGrowthRate);
         context.setHealthInsuranceRate(healthInsuranceRate);
         context.setPensionRate(pensionRate);
         context.setEmploymentInsuranceRate(employmentInsuranceRate);

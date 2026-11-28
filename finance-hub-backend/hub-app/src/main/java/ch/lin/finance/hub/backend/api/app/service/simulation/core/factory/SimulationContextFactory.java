@@ -121,7 +121,8 @@ public class SimulationContextFactory {
 
         salaryContextBuilder.initializeSalaryContext(context, config, currentYear, userId);
 
-        long baselineMonthlyExpenses = incomeExpenseCalculator.calculateDynamicBaselineMonthlyExpenses(config, profile);
+        long baselineMonthlyExpenses = incomeExpenseCalculator.calculateDynamicBaselineMonthlyExpenses(config, profile,
+                userId);
         context.setBaselineMonthlyExpenses(baselineMonthlyExpenses);
 
         pensionContextBuilder.initializePensionContext(context, userId);

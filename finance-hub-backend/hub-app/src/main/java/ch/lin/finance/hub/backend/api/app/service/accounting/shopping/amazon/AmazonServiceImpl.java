@@ -23,6 +23,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import ch.lin.finance.hub.backend.api.app.repository.accounting.shopping.AmazonOrderRepository;
 import ch.lin.finance.hub.backend.api.app.service.accounting.shopping.amazon.command.SaveAmazonOrderCommand;
 import ch.lin.finance.hub.backend.api.app.service.accounting.shopping.amazon.result.AmazonOrderResult;
+import ch.lin.finance.hub.backend.api.app.util.SecurityUtil;
 import ch.lin.finance.hub.backend.api.domain.model.accounting.shopping.amazon.AmazonOrder;
 
 /**
@@ -86,9 +87,11 @@ public class AmazonServiceImpl implements AmazonService {
     @Override
     @Transactional
     public AmazonOrderResult saveOrder(SaveAmazonOrderCommand command) {
+        String currentUserId = SecurityUtil.getCurrentUserId();
         return transactionTemplate.execute(status -> {
             AmazonOrder parsedOrder = AmazonOrderAppMapper.toEntity(command);
-            Optional<AmazonOrder> existingOpt = amazonOrderRepository.findByOrderId(parsedOrder.getOrderId());
+            Optional<AmazonOrder> existingOpt = amazonOrderRepository.findByOwnerUserIdAndOrderId(
+                    currentUserId, parsedOrder.getOrderId());
             AmazonOrder savedOrder;
             if (existingOpt.isPresent()) {
                 AmazonOrder existingOrder = existingOpt.get();
@@ -109,7 +112,8 @@ public class AmazonServiceImpl implements AmazonService {
     @Override
     @Transactional(readOnly = true)
     public Optional<AmazonOrderResult> getOrder(String orderId) {
-        return amazonOrderRepository.findByOrderId(orderId).map(AmazonOrderResult::fromEntity);
+        return amazonOrderRepository.findByOwnerUserIdAndOrderId(SecurityUtil.getCurrentUserId(), orderId)
+                .map(AmazonOrderResult::fromEntity);
     }
 
     /**
@@ -118,7 +122,7 @@ public class AmazonServiceImpl implements AmazonService {
     @Override
     @Transactional(readOnly = true)
     public Optional<AmazonOrderResult> getOrderWithDetails(String orderId) {
-        return amazonOrderRepository.findWithDetailsByOrderId(orderId)
+        return amazonOrderRepository.findWithDetailsByOwnerUserIdAndOrderId(SecurityUtil.getCurrentUserId(), orderId)
                 .map(AmazonOrderResult::fromEntity);
     }
 }

@@ -40,6 +40,9 @@ public interface DefinedContributionFundSnapshotRepository
     Optional<DefinedContributionFundSnapshot> findFirstByCommodityTypeAndFundNameOrderByAccountSnapshot_RecordDateDesc(
             String commodityType, String fundName);
 
+    Optional<DefinedContributionFundSnapshot> findFirstByOwnerUserIdAndCommodityTypeAndFundNameOrderByAccountSnapshot_RecordDateDesc(
+            String ownerUserId, String commodityType, String fundName);
+
     @Transactional
     @Modifying
     @Query(value = "ALTER TABLE dc_fund_snapshot AUTO_INCREMENT = 1", nativeQuery = true)

@@ -15,6 +15,7 @@ package ch.lin.finance.hub.backend.api.controller.accounting.nisa;
 import java.util.Collections;
 import java.util.List;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,6 +27,10 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.test.web.servlet.MockMvc;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -56,16 +61,29 @@ class NisaSnapshotRecordControllerTest {
     @InjectMocks
     private NisaSnapshotRecordController controller;
 
+    private SecurityContext previousSecurityContext;
+
     @BeforeEach
     public void setUp() {
+        previousSecurityContext = SecurityContextHolder.getContext();
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
-        org.springframework.security.oauth2.jwt.Jwt jwt = org.springframework.security.oauth2.jwt.Jwt.withTokenValue("token")
+        Jwt jwt = Jwt.withTokenValue("token")
                 .header("alg", "none")
                 .claim("sub", "test-user")
                 .build();
-        org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken jwtAuth = 
-                new org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken(jwt);
-        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(jwtAuth);
+        JwtAuthenticationToken jwtAuth = new JwtAuthenticationToken(jwt);
+        SecurityContext context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(jwtAuth);
+        SecurityContextHolder.setContext(context);
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (previousSecurityContext != null) {
+            SecurityContextHolder.setContext(previousSecurityContext);
+        } else {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     @Test
@@ -84,8 +102,8 @@ class NisaSnapshotRecordControllerTest {
     void getProjection_ReturnsList() throws Exception {
         NisaProjectionYearlyResult dto = new NisaProjectionYearlyResult(2025, 150000L, 200000L, 50000L);
         NisaProjectionYearlyResponse response = new NisaProjectionYearlyResponse(2025, 150000L, 200000L, 50000L);
-        when(nisaProjectionService.calculateProjection(eq(30))).thenReturn(List.of(dto));
-        when(nisaSnapshotMapper.toMaskedResponse(eq(dto), org.mockito.ArgumentMatchers.any())).thenReturn(response);
+        when(nisaProjectionService.calculateProjection(eq("test-user"), eq(30))).thenReturn(List.of(dto));
+        when(nisaSnapshotMapper.toMaskedResponse(eq(dto), eq("test-user"))).thenReturn(response);
 
         mockMvc.perform(get("/assets/nisa/projection")
                 .param("years", "30"))
@@ -95,6 +113,6 @@ class NisaSnapshotRecordControllerTest {
                 .andExpect(jsonPath("$[0].projectedMarketValue").value(200000))
                 .andExpect(jsonPath("$[0].projectedTotalGain").value(50000));
 
-        verify(nisaProjectionService, times(1)).calculateProjection(30);
+        verify(nisaProjectionService, times(1)).calculateProjection("test-user", 30);
     }
 }

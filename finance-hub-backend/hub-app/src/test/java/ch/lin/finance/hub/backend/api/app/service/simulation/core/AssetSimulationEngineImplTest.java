@@ -189,8 +189,7 @@ class AssetSimulationEngineImplTest {
     @SuppressWarnings({ "unused", "null" })
     void setUp() {
         incomeExpenseCalculator = new IncomeExpenseCalculator(bankTransactionRepository,
-                creditCardTransactionRepository, transactionLinkRepository,
-                salaryUserSettingsRepository);
+                creditCardTransactionRepository, transactionLinkRepository);
         investmentReturnCalculator = new InvestmentReturnCalculator();
         TaxStrategyFactory taxStrategyFactory = new TaxStrategyFactory(List.of(
                 new Pre2022TaxStrategy(),
@@ -274,9 +273,10 @@ class AssetSimulationEngineImplTest {
 
         lenient().when(pensionRecordRepository.findAllByOwnerUserId(anyString(), any(Sort.class)))
                 .thenReturn(Collections.emptyList());
-        lenient().when(bankTransactionRepository.findByTransactionDateBetween(any(), any()))
+        lenient().when(bankTransactionRepository.findByOwnerUserIdAndTransactionDateBetween(anyString(), any(), any()))
                 .thenReturn(Collections.emptyList());
-        lenient().when(creditCardTransactionRepository.findByTransactionDateBetween(any(), any()))
+        lenient().when(
+                creditCardTransactionRepository.findByOwnerUserIdAndTransactionDateBetween(anyString(), any(), any()))
                 .thenReturn(Collections.emptyList());
 
         UserProfile mockProfile = new UserProfile("test-user", LocalDate.of(1996, 1, 1), 250_000L,

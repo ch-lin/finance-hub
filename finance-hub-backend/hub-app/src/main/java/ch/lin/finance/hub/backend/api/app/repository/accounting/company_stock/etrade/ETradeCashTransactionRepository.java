@@ -15,14 +15,19 @@ package ch.lin.finance.hub.backend.api.app.repository.accounting.company_stock.e
 import java.time.LocalDate;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
 import ch.lin.finance.hub.backend.api.domain.model.accounting.company_stock.etrade.ETradeCashTransaction;
 import ch.lin.finance.hub.backend.api.domain.model.valueobject.MonetaryAmount;
 
 @Repository
-public interface ETradeCashTransactionRepository extends JpaRepository<ETradeCashTransaction, String> {
+public interface ETradeCashTransactionRepository
+        extends JpaRepository<ETradeCashTransaction, Long>, JpaSpecificationExecutor<ETradeCashTransaction> {
 
-    boolean existsBySymbolAndTransactionDateAndDescriptionAndAmount(String symbol, LocalDate transactionDate, String description,
-            MonetaryAmount amount);
+    boolean existsBySymbolAndTransactionDateAndDescriptionAndAmount(String symbol, LocalDate transactionDate,
+            String description, MonetaryAmount amount);
+
+    boolean existsByOwnerUserIdAndSymbolAndTransactionDateAndDescriptionAndAmount(String ownerUserId, String symbol,
+            LocalDate transactionDate, String description, MonetaryAmount amount);
 }
